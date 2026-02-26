@@ -37,7 +37,7 @@ var statsCmd = &cobra.Command{
 var dryRunCmd = &cobra.Command{
 	Use:   "dry-run",
 	Short: "Preview the context bomb without emitting it",
-	Long:  `dry-run shows what would be injected without writing to stdout. Useful for debugging.`,
+	Long:  `dry-run shows what would be injected without performing injection. Writes a preview to stdout for debugging.`,
 	RunE:  dryRunHandler,
 }
 
@@ -122,7 +122,11 @@ func statusHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	// Cache freshness
-	graph, fresh, _, _ := store.Get(proj.Hash)
+	graph, fresh, _, err := store.Get(proj.Hash)
+	if err != nil {
+		fmt.Printf("Cache:    error (%v)\n", err)
+		return nil
+	}
 	if graph == nil {
 		fmt.Println("Cache:    empty")
 	} else if fresh {
@@ -225,7 +229,10 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 	defer store.Close()
 
 	// Try cache first
-	cachedGraph, fresh, _, _ := store.Get(proj.Hash)
+	cachedGraph, fresh, _, err := store.Get(proj.Hash)
+	if err != nil {
+		return fmt.Errorf("reading cache: %w", err)
+	}
 
 	if cachedGraph != nil && !forceRefresh {
 		if !fresh {

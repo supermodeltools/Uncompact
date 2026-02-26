@@ -72,8 +72,15 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	}
 	defer store.Close()
 
-	// Background prune (non-blocking)
-	go func() { _ = store.Prune() }()
+	// Background prune on an isolated DB handle to avoid racing with store.Close().
+	go func(path string) {
+		pruneStore, err := cache.Open(path)
+		if err != nil {
+			return
+		}
+		defer pruneStore.Close()
+		_ = pruneStore.Prune()
+	}(dbPath)
 
 	// Check cache
 	var graph *api.ProjectGraph
@@ -181,6 +188,9 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, logFn func(string, 
 	zipData, err := zip.RepoZip(proj.RootDir)
 	if err != nil {
 		logFn("[warn] zip error: %v", err)
+		if fallback {
+			printFallback(proj.Name)
+		}
 		return silentExit()
 	}
 
@@ -188,6 +198,9 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, logFn func(string, 
 	graph, err := apiClient.GetGraph(ctx, proj.Name, zipData)
 	if err != nil {
 		logFn("[warn] API error: %v", err)
+		if fallback {
+			printFallback(proj.Name)
+		}
 		return silentExit()
 	}
 
@@ -195,6 +208,9 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, logFn func(string, 
 	output, _, err := tmpl.Render(graph, proj.Name, opts)
 	if err != nil {
 		logFn("[warn] render error: %v", err)
+		if fallback {
+			printFallback(proj.Name)
+		}
 		return silentExit()
 	}
 

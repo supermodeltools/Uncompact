@@ -217,6 +217,20 @@ func (c *Client) pollJob(ctx context.Context, jobID string) (*ProjectGraph, erro
 			continue
 		}
 
+		// Check HTTP status before parsing — non-retriable errors fail fast.
+		switch {
+		case resp.StatusCode == http.StatusUnauthorized:
+			return nil, fmt.Errorf("authentication failed during poll: check your API key at %s", config.DashboardURL)
+		case resp.StatusCode == http.StatusNotFound:
+			return nil, fmt.Errorf("job %s not found (status 404)", jobID)
+		case resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500:
+			// Transient — continue retry loop
+			c.logFn("[debug] poll transient error %d (will retry)", resp.StatusCode)
+			continue
+		case resp.StatusCode < 200 || resp.StatusCode >= 300:
+			return nil, fmt.Errorf("poll returned unexpected status %d: %s", resp.StatusCode, string(body))
+		}
+
 		var status JobStatus
 		if err := json.Unmarshal(body, &status); err != nil {
 			continue

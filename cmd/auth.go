@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/supermodeltools/uncompact/internal/api"
 	"github.com/supermodeltools/uncompact/internal/config"
+	"golang.org/x/term"
 )
 
 var authCmd = &cobra.Command{
@@ -54,14 +54,22 @@ func authLoginHandler(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Print("2. Paste your API key here: ")
 
-	scanner := bufio.NewScanner(os.Stdin)
-	if !scanner.Scan() {
-		if err := scanner.Err(); err != nil {
+	var key string
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		b, err := term.ReadPassword(int(os.Stdin.Fd()))
+		fmt.Println()
+		if err != nil {
 			return fmt.Errorf("reading API key: %w", err)
 		}
-		return fmt.Errorf("no input provided")
+		key = strings.TrimSpace(string(b))
+	} else {
+		// Non-interactive fallback (e.g. piped input in CI)
+		var raw string
+		if _, err := fmt.Fscanln(os.Stdin, &raw); err != nil {
+			return fmt.Errorf("reading API key: %w", err)
+		}
+		key = strings.TrimSpace(raw)
 	}
-	key := strings.TrimSpace(scanner.Text())
 	if key == "" {
 		return fmt.Errorf("API key cannot be empty")
 	}
@@ -89,8 +97,11 @@ func authLoginHandler(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("saving config: %w", err)
 	}
 
-	cfgFile, _ := config.ConfigFile()
-	fmt.Printf("\nAPI key saved to: %s\n", cfgFile)
+	if cfgFile, err := config.ConfigFile(); err == nil {
+		fmt.Printf("\nAPI key saved to: %s\n", cfgFile)
+	} else {
+		fmt.Println("\nAPI key saved.")
+	}
 	fmt.Println()
 	fmt.Println("Next: run 'uncompact install' to add hooks to Claude Code.")
 	return nil

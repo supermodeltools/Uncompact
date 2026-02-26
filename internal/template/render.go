@@ -52,7 +52,7 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 		opts.MaxTokens = 2000
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 
 	data := struct {
 		ProjectName   string
@@ -119,6 +119,10 @@ func truncateToTokenBudget(
 	)
 
 	reqTokens := countTokens(required)
+	if reqTokens > maxTokens {
+		msg := "# Uncompact Context\n\n(Budget too small; increase --max-tokens)"
+		return msg, countTokens(msg), nil
+	}
 	remaining := maxTokens - reqTokens
 
 	var domainSections []string

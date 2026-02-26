@@ -118,10 +118,13 @@ func Load(flagAPIKey string) (*Config, error) {
 	// Load from config file
 	cfgFile, err := ConfigFile()
 	if err == nil {
-		if data, err := os.ReadFile(cfgFile); err == nil {
+		data, readErr := os.ReadFile(cfgFile)
+		if readErr == nil {
 			if err := json.Unmarshal(data, cfg); err != nil {
 				return nil, fmt.Errorf("malformed config file %s: %w", cfgFile, err)
 			}
+		} else if !os.IsNotExist(readErr) {
+			return nil, fmt.Errorf("reading config file %s: %w", cfgFile, readErr)
 		}
 	}
 

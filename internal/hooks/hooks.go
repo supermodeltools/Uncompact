@@ -102,9 +102,7 @@ func Install(settingsPath string, dryRun bool) (*InstallResult, error) {
 	var rawJSON map[string]json.RawMessage
 	if data, err := os.ReadFile(settingsPath); err == nil {
 		if err := json.Unmarshal(data, &rawJSON); err != nil {
-			// File exists but is invalid JSON — warn and treat as empty
-			fmt.Fprintf(os.Stderr, "Warning: existing settings.json has invalid JSON, will recreate hooks section\n")
-			rawJSON = make(map[string]json.RawMessage)
+			return nil, fmt.Errorf("invalid settings.json at %s: %w", settingsPath, err)
 		}
 	} else if !os.IsNotExist(err) {
 		return nil, fmt.Errorf("reading settings.json: %w", err)
@@ -155,7 +153,7 @@ func Install(settingsPath string, dryRun bool) (*InstallResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(settingsPath, finalJSON, 0644); err != nil {
+	if err := os.WriteFile(settingsPath, finalJSON, 0600); err != nil {
 		return nil, fmt.Errorf("writing settings.json: %w", err)
 	}
 
@@ -163,6 +161,9 @@ func Install(settingsPath string, dryRun bool) (*InstallResult, error) {
 }
 
 // isAlreadyInstalled checks if uncompact hooks are already present.
+// Recognises both the direct "uncompact run" form and the wrapper-script form
+// used by the plugin (uncompact-hook.sh) so re-running install is idempotent
+// regardless of which installation method was used.
 func isAlreadyInstalled(hooks map[string][]Hook) bool {
 	stopHooks, ok := hooks["Stop"]
 	if !ok {
@@ -170,7 +171,8 @@ func isAlreadyInstalled(hooks map[string][]Hook) bool {
 	}
 	for _, h := range stopHooks {
 		for _, cmd := range h.Hooks {
-			if strings.Contains(cmd.Command, "uncompact run") {
+			if strings.Contains(cmd.Command, "uncompact run") ||
+				strings.Contains(cmd.Command, "uncompact-hook.sh") {
 				return true
 			}
 		}

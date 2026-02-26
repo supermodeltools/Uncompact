@@ -74,6 +74,11 @@ func RepoZip(root string) ([]byte, error) {
 			return nil
 		}
 
+		// Skip symlinks to avoid including files outside the repo root.
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil
+		}
+
 		// Skip by extension
 		ext := strings.ToLower(filepath.Ext(path))
 		if skipExts[ext] {
