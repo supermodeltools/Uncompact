@@ -32,9 +32,12 @@ The fastest way to integrate Uncompact is via the Claude Code plugin system — 
 /plugin install github:supermodeltools/Uncompact
 ```
 
-This installs the `Stop` hook automatically. The plugin's wrapper script finds your `uncompact` binary and runs `uncompact run` after every compaction event.
+This installs both hooks automatically:
 
-> **Note:** You still need to install the `uncompact` binary and authenticate before the plugin can inject context. See [Quick Start](#quick-start) below.
+- **`SessionStart`** — runs `scripts/setup.sh` which auto-installs the `uncompact` binary via `go install` if not already present.
+- **`Stop`** — runs `scripts/uncompact-hook.sh` which reinjects context after every compaction event.
+
+> **Note:** After plugin installation, authenticate once with `uncompact auth login` to connect your Supermodel API key. That's it — no manual binary install or hook setup required.
 
 ### CI / GitHub Actions
 
