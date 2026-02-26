@@ -22,6 +22,31 @@ Render token-budgeted Markdown context bomb
 Claude Code receives context via stdout
 ```
 
+## Claude Code Plugin
+
+The fastest way to integrate Uncompact is via the Claude Code plugin system — no manual hook installation required.
+
+### Install the plugin
+
+```bash
+/plugin install github:supermodeltools/Uncompact
+```
+
+This installs the `Stop` hook automatically. The plugin's wrapper script finds your `uncompact` binary and runs `uncompact run` after every compaction event.
+
+> **Note:** You still need to install the `uncompact` binary and authenticate before the plugin can inject context. See [Quick Start](#quick-start) below.
+
+### CI / GitHub Actions
+
+In remote environments (`CLAUDE_CODE_REMOTE=true`), the hook automatically enables `--fallback` mode. Pass your API key via the `SUPERMODEL_API_KEY` environment variable:
+
+```yaml
+env:
+  SUPERMODEL_API_KEY: ${{ secrets.SUPERMODEL_API_KEY }}
+```
+
+---
+
 ## Quick Start
 
 ### 1. Install
