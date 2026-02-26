@@ -12,8 +12,6 @@ import (
 // ClaudeSettings represents Claude Code's settings.json structure.
 type ClaudeSettings struct {
 	Hooks map[string][]Hook `json:"hooks,omitempty"`
-	// Preserve other fields we don't know about
-	Extra map[string]json.RawMessage `json:"-"`
 }
 
 // Hook represents a single hook definition.
@@ -133,8 +131,8 @@ func Install(settingsPath string, dryRun bool) (*InstallResult, error) {
 	merged := mergeHooks(existingHooks, uncompactHooks)
 
 	// Build diff
-	oldHooksJSON, _ := json.MarshalIndent(existingHooks, "  ", "  ")
-	newHooksJSON, _ := json.MarshalIndent(merged, "  ", "  ")
+	oldHooksJSON, _ := json.MarshalIndent(existingHooks, "", "  ")
+	newHooksJSON, _ := json.MarshalIndent(merged, "", "  ")
 	result.Diff = buildDiff(string(oldHooksJSON), string(newHooksJSON))
 
 	if dryRun {
@@ -180,7 +178,8 @@ func isAlreadyInstalled(hooks map[string][]Hook) bool {
 	return false
 }
 
-// mergeHooks merges new hooks into existing hooks without duplicating.
+// mergeHooks appends new hooks to existing hooks. Caller should check
+// isAlreadyInstalled() first to avoid duplicates.
 func mergeHooks(existing, toAdd map[string][]Hook) map[string][]Hook {
 	result := make(map[string][]Hook)
 	for k, v := range existing {

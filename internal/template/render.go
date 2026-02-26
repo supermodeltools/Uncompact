@@ -1,10 +1,10 @@
-package render
+package template
 
 import (
 	"bytes"
 	"fmt"
 	"strings"
-	"text/template"
+	gotmpl "text/template"
 	"time"
 	"unicode"
 
@@ -71,7 +71,7 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 		data.StaleDuration = humanDuration(now.Sub(*opts.StaleAt))
 	}
 
-	funcMap := template.FuncMap{
+	funcMap := gotmpl.FuncMap{
 		"join": strings.Join,
 		"languageList": func(langs map[string]int) string {
 			parts := make([]string, 0, len(langs))
@@ -82,7 +82,7 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 		},
 	}
 
-	tmpl, err := template.New("context_bomb").Funcs(funcMap).Parse(contextBombTmpl)
+	tmpl, err := gotmpl.New("context_bomb").Funcs(funcMap).Parse(contextBombTmpl)
 	if err != nil {
 		return "", 0, fmt.Errorf("parsing template: %w", err)
 	}

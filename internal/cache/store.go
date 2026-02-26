@@ -55,6 +55,7 @@ func (s *Store) Close() error {
 
 // migrate runs schema migrations.
 func (s *Store) migrate() error {
+	// Phase 1: create tables and indexes (idempotent via IF NOT EXISTS).
 	_, err := s.db.Exec(`
 		PRAGMA journal_mode=WAL;
 
@@ -87,12 +88,27 @@ func (s *Store) migrate() error {
 		CREATE INDEX IF NOT EXISTS idx_injection_log_project ON injection_log(project_hash);
 		CREATE INDEX IF NOT EXISTS idx_injection_log_created ON injection_log(created_at);
 	`)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Phase 2: record schema version if not already recorded.
+	var currentVersion int
+	if err := s.db.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_version`).Scan(&currentVersion); err != nil {
+		return err
+	}
+	if currentVersion < schemaVersion {
+		_, err = s.db.Exec(`INSERT INTO schema_version (version) VALUES (?)`, schemaVersion)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Get retrieves a cached graph for the given project hash.
-// Returns (graph, isFresh, nil) — graph may be stale but non-nil.
-func (s *Store) Get(projectHash string) (*api.ProjectGraph, bool, error) {
+// Returns (graph, isFresh, expiresAt, nil) — graph may be stale but non-nil.
+func (s *Store) Get(projectHash string) (*api.ProjectGraph, bool, *time.Time, error) {
 	row := s.db.QueryRow(`
 		SELECT graph_json, expires_at
 		FROM graph_cache
@@ -103,18 +119,18 @@ func (s *Store) Get(projectHash string) (*api.ProjectGraph, bool, error) {
 	var graphJSON string
 	var expiresAt time.Time
 	if err := row.Scan(&graphJSON, &expiresAt); err == sql.ErrNoRows {
-		return nil, false, nil
+		return nil, false, nil, nil
 	} else if err != nil {
-		return nil, false, err
+		return nil, false, nil, err
 	}
 
 	var graph api.ProjectGraph
 	if err := json.Unmarshal([]byte(graphJSON), &graph); err != nil {
-		return nil, false, err
+		return nil, false, nil, err
 	}
 
 	isFresh := time.Now().Before(expiresAt)
-	return &graph, isFresh, nil
+	return &graph, isFresh, &expiresAt, nil
 }
 
 // Set stores a graph for the given project hash with the default TTL.
@@ -196,9 +212,9 @@ func (s *Store) GetStats(projectHash string) (*Stats, error) {
 	query := `
 		SELECT
 			COUNT(*) as total,
-			SUM(CASE WHEN source = 'api' THEN 1 ELSE 0 END) as api_fetches,
-			SUM(CASE WHEN source = 'cache' OR source = 'stale_cache' THEN 1 ELSE 0 END) as cache_hits,
-			SUM(tokens) as total_tokens,
+			COALESCE(SUM(CASE WHEN source = 'api' THEN 1 ELSE 0 END), 0) as api_fetches,
+			COALESCE(SUM(CASE WHEN source = 'cache' OR source = 'stale_cache' THEN 1 ELSE 0 END), 0) as cache_hits,
+			COALESCE(SUM(tokens), 0) as total_tokens,
 			AVG(tokens) as avg_tokens
 		FROM injection_log`
 	args := []interface{}{}

@@ -56,6 +56,9 @@ func authLoginHandler(cmd *cobra.Command, args []string) error {
 
 	scanner := bufio.NewScanner(os.Stdin)
 	if !scanner.Scan() {
+		if err := scanner.Err(); err != nil {
+			return fmt.Errorf("reading API key: %w", err)
+		}
 		return fmt.Errorf("no input provided")
 	}
 	key := strings.TrimSpace(scanner.Text())
@@ -108,15 +111,14 @@ func authStatusHandler(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Status: authenticated\n")
 	keyLen := len(cfg.APIKey)
-	prefixEnd := clampAPIKey(cfg.APIKey, 4)
-	suffixStart := keyLen - 4
-	if suffixStart < 0 {
-		suffixStart = 0
+	if keyLen <= 8 {
+		fmt.Printf("API key: [%d chars]\n", keyLen)
+	} else {
+		fmt.Printf("API key: %s...%s\n",
+			cfg.APIKey[:4],
+			cfg.APIKey[keyLen-4:],
+		)
 	}
-	fmt.Printf("API key: %s...%s\n",
-		cfg.APIKey[:prefixEnd],
-		cfg.APIKey[suffixStart:],
-	)
 
 	// Try to validate
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -148,9 +150,3 @@ func authLogoutHandler(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func clampAPIKey(key string, n int) int {
-	if n < len(key) {
-		return n
-	}
-	return len(key)
-}

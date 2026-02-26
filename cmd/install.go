@@ -93,7 +93,7 @@ func verifyInstallHandler(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		fmt.Println("✗ Could not find Claude Code settings.json")
 		fmt.Println("  Ensure Claude Code is installed, or check your settings path.")
-		return nil
+		return fmt.Errorf("settings file not found: %w", err)
 	}
 
 	installed, err := hooks.Verify(settingsPath)

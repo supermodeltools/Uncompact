@@ -82,7 +82,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	var staleAt *time.Time
 
 	if !forceRefresh {
-		cached, fresh, err := store.Get(proj.Hash)
+		cached, fresh, expiresAt, err := store.Get(proj.Hash)
 		if err != nil {
 			logFn("[warn] cache read error: %v", err)
 		} else if cached != nil {
@@ -92,8 +92,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 				logFn("[debug] serving fresh cached graph")
 			} else {
 				stale = true
-				now := time.Now()
-				staleAt = &now
+				staleAt = expiresAt // when the cache entry expired
 				source = "stale_cache"
 				logFn("[debug] serving stale cached graph (will refresh in background if API available)")
 			}
@@ -109,14 +108,13 @@ func runHandler(cmd *cobra.Command, args []string) error {
 		zipData, err := zip.RepoZip(proj.RootDir)
 		if err != nil {
 			logFn("[warn] zip error: %v", err)
-			if stale && graph != nil {
-				// Use stale cache as fallback
-			} else {
+			if !stale || graph == nil {
 				if fallback {
 					printFallback(proj.Name)
 				}
 				return silentExit()
 			}
+			// else: fall through to use stale cache
 		} else {
 			apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
 			freshGraph, err := apiClient.GetGraph(ctx, proj.Name, zipData)

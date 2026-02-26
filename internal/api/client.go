@@ -9,6 +9,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"time"
+
+	"github.com/supermodeltools/uncompact/internal/config"
 )
 
 const (
@@ -152,10 +154,10 @@ func (c *Client) GetGraph(ctx context.Context, projectName string, repoZip []byt
 		return c.pollJob(ctx, jobResp.JobID)
 
 	case http.StatusUnauthorized:
-		return nil, fmt.Errorf("authentication failed: check your API key at %s", "https://dashboard.supermodeltools.com")
+		return nil, fmt.Errorf("authentication failed: check your API key at %s", config.DashboardURL)
 
 	case http.StatusPaymentRequired:
-		return nil, fmt.Errorf("subscription required: visit https://dashboard.supermodeltools.com to subscribe")
+		return nil, fmt.Errorf("subscription required: visit %s to subscribe", config.DashboardURL)
 
 	case http.StatusTooManyRequests:
 		return nil, fmt.Errorf("rate limit exceeded: please wait before retrying")
@@ -272,7 +274,7 @@ func (c *Client) ValidateKey(ctx context.Context) (string, error) {
 		Plan  string `json:"plan"`
 	}
 	if err := json.Unmarshal(body, &me); err != nil {
-		return "", nil
+		return "", fmt.Errorf("parsing auth response: %w", err)
 	}
 	return fmt.Sprintf("%s (%s)", me.Email, me.Plan), nil
 }

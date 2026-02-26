@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -121,7 +122,7 @@ func statusHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	// Cache freshness
-	graph, fresh, _ := store.Get(proj.Hash)
+	graph, fresh, _, _ := store.Get(proj.Hash)
 	if graph == nil {
 		fmt.Println("Cache:    empty")
 	} else if fresh {
@@ -155,7 +156,7 @@ func logsHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("%-20s %-20s %6s  %-12s  %s\n", "TIME", "PROJECT", "TOKENS", "SOURCE", "FLAGS")
-	fmt.Println(string(make([]byte, 75)))
+	fmt.Println(strings.Repeat("-", 75))
 	for _, l := range logs {
 		flags := ""
 		if l.StaleAt != nil {
@@ -203,8 +204,6 @@ func statsHandler(cmd *cobra.Command, args []string) error {
 }
 
 func dryRunHandler(cmd *cobra.Command, args []string) error {
-	logFn := makeLogger()
-
 	cfg, err := config.Load(apiKey)
 	if err != nil {
 		return err
@@ -226,7 +225,7 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 	defer store.Close()
 
 	// Try cache first
-	cachedGraph, fresh, _ := store.Get(proj.Hash)
+	cachedGraph, fresh, _, _ := store.Get(proj.Hash)
 
 	if cachedGraph != nil && !forceRefresh {
 		if !fresh {
@@ -247,8 +246,6 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 		fmt.Print(output)
 		return nil
 	}
-
-	_ = logFn
 
 	if !cfg.IsAuthenticated() {
 		return fmt.Errorf("not authenticated — run 'uncompact auth login'")

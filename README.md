@@ -6,7 +6,7 @@ Uncompact hooks into Claude Code's lifecycle to reinject a high-density "context
 
 ## How It Works
 
-```
+```text
 Claude Code compaction occurs
          ↓
 Stop hook fires → uncompact run
@@ -82,7 +82,7 @@ uncompact run --debug
 
 ## CLI Reference
 
-```
+```text
 uncompact auth login             # Authenticate via dashboard.supermodeltools.com
 uncompact auth status            # Show auth status and API key validity
 uncompact auth logout            # Remove stored API key
@@ -162,7 +162,7 @@ See the [Claude Code hooks guide](https://code.claude.com/docs/en/hooks-guide#re
 
 ## Architecture
 
-```
+```text
 uncompact/
 ├── main.go
 ├── cmd/
@@ -208,7 +208,7 @@ The context bomb is capped at `--max-tokens` (default: 2,000) to avoid triggerin
 
 ### Fallback Chain
 
-```
+```text
 1. Fresh cache hit → serve immediately
 2. Cache miss / stale → fetch from API → cache result
 3. API fails + stale cache exists → serve stale with warning

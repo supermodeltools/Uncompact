@@ -113,10 +113,7 @@ func DBPath() (string, error) {
 // Load reads the config file, merging with environment variables and flag overrides.
 // flagAPIKey takes precedence over env var, which takes precedence over config file.
 func Load(flagAPIKey string) (*Config, error) {
-	cfg := &Config{
-		BaseURL:   APIBaseURL,
-		MaxTokens: 2000,
-	}
+	cfg := &Config{}
 
 	// Load from config file
 	cfgFile, err := ConfigFile()
@@ -136,6 +133,14 @@ func Load(flagAPIKey string) (*Config, error) {
 	// Override with flag
 	if flagAPIKey != "" {
 		cfg.APIKey = flagAPIKey
+	}
+
+	// Apply defaults for any fields not set by file/env/flag.
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = APIBaseURL
+	}
+	if cfg.MaxTokens <= 0 {
+		cfg.MaxTokens = 2000
 	}
 
 	return cfg, nil

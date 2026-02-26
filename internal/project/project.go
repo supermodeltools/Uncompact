@@ -48,7 +48,8 @@ func Detect(dir string) (*Info, error) {
 		info.Branch = strings.TrimSpace(out)
 	}
 
-	// Build a stable hash from the root path (and remote URL if available)
+	// Build a stable hash from the root path (and remote URL if available).
+	// h[:8] = 8 bytes formatted as %x = first 16 hex characters.
 	hashInput := root
 	if info.GitURL != "" {
 		hashInput = info.GitURL

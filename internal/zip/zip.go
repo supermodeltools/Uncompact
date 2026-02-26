@@ -60,12 +60,17 @@ func RepoZip(root string) ([]byte, error) {
 		}
 		rel = filepath.ToSlash(rel)
 
-		// Skip hidden dirs and known large/irrelevant dirs
+		// Skip hidden entries and known large/irrelevant directories.
+		base := filepath.Base(path)
 		if info.IsDir() {
-			base := filepath.Base(path)
 			if skipDirs[base] || strings.HasPrefix(base, ".") {
 				return filepath.SkipDir
 			}
+			return nil
+		}
+
+		// Skip hidden files (e.g. .env, .secrets).
+		if strings.HasPrefix(base, ".") {
 			return nil
 		}
 
