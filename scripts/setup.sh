@@ -34,9 +34,13 @@ fi
 # Try to install via go install (requires Go 1.22+).
 if command -v go >/dev/null 2>&1; then
   echo "[uncompact] Installing via go install..." >&2
-  if go install "${INSTALL_URL}" >/dev/null 2>&1; then
+  install_output=$(go install "${INSTALL_URL}" 2>&1)
+  if [ $? -eq 0 ]; then
     echo "[uncompact] Installed successfully. Run 'uncompact auth login' to authenticate." >&2
     exit 0
+  else
+    echo "[uncompact] go install failed:" >&2
+    echo "$install_output" >&2
   fi
 fi
 

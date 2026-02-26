@@ -37,10 +37,8 @@ if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
   ARGS+=("--fallback")
 fi
 
-# Allow API key override via environment variable (useful in CI).
-if [ -n "${SUPERMODEL_API_KEY:-}" ]; then
-  ARGS+=("--api-key" "${SUPERMODEL_API_KEY}")
-fi
+# SUPERMODEL_API_KEY is read directly from the environment by the uncompact binary.
+# Do not pass it as a CLI argument to avoid exposing it in process listings (ps aux).
 
 # Execute uncompact run — stdout is injected into Claude Code's context after compaction.
 exec "$UNCOMPACT" "${ARGS[@]}"
