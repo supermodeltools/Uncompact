@@ -117,15 +117,15 @@ func Load(flagAPIKey string) (*Config, error) {
 
 	// Load from config file
 	cfgFile, err := ConfigFile()
-	if err == nil {
-		data, readErr := os.ReadFile(cfgFile)
-		if readErr == nil {
-			if err := json.Unmarshal(data, cfg); err != nil {
-				return nil, fmt.Errorf("malformed config file %s: %w", cfgFile, err)
-			}
-		} else if !os.IsNotExist(readErr) {
-			return nil, fmt.Errorf("reading config file %s: %w", cfgFile, readErr)
+	if err != nil {
+		return nil, fmt.Errorf("resolving config file path: %w", err)
+	}
+	if data, err := os.ReadFile(cfgFile); err == nil {
+		if err := json.Unmarshal(data, cfg); err != nil {
+			return nil, fmt.Errorf("malformed config file %s: %w", cfgFile, err)
 		}
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("reading config file %s: %w", cfgFile, err)
 	}
 
 	// Override with env var

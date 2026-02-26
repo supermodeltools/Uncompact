@@ -120,8 +120,8 @@ func truncateToTokenBudget(
 
 	reqTokens := countTokens(required)
 	if reqTokens > maxTokens {
-		msg := "# Uncompact Context\n\n(Budget too small; increase --max-tokens)"
-		return msg, countTokens(msg), nil
+		fallback := "# Uncompact Context\n\n(Budget too small; increase --max-tokens)"
+		return fallback, countTokens(fallback), nil
 	}
 	remaining := maxTokens - reqTokens
 

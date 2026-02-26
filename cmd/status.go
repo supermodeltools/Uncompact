@@ -37,7 +37,7 @@ var statsCmd = &cobra.Command{
 var dryRunCmd = &cobra.Command{
 	Use:   "dry-run",
 	Short: "Preview the context bomb without emitting it",
-	Long:  `dry-run shows what would be injected without performing injection. Writes a preview to stdout for debugging.`,
+	Long:  `dry-run shows what would be injected. Metadata is written to stderr; the context bomb itself is written to stdout. Useful for debugging.`,
 	RunE:  dryRunHandler,
 }
 
