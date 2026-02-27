@@ -78,16 +78,19 @@ func (ir *SupermodelIR) toProjectGraph(projectName string) *ProjectGraph {
 
 	domains := make([]Domain, 0, len(ir.Domains))
 	for _, d := range ir.Domains {
-		subdomainNames := make([]string, 0, len(d.Subdomains))
+		subdomains := make([]Subdomain, 0, len(d.Subdomains))
 		for _, s := range d.Subdomains {
-			subdomainNames = append(subdomainNames, s.Name)
+			subdomains = append(subdomains, Subdomain{
+				Name:        s.Name,
+				Description: s.DescriptionSummary,
+			})
 		}
 		domains = append(domains, Domain{
 			Name:             d.Name,
 			Description:      d.DescriptionSummary,
 			KeyFiles:         d.KeyFiles,
 			Responsibilities: d.Responsibilities,
-			Subdomains:       subdomainNames,
+			Subdomains:       subdomains,
 		})
 	}
 
@@ -115,14 +118,20 @@ type ProjectGraph struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// Subdomain represents a named sub-area within a domain.
+type Subdomain struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
 // Domain represents a semantic domain within the project.
 type Domain struct {
-	Name             string   `json:"name"`
-	Description      string   `json:"description"`
-	KeyFiles         []string `json:"key_files"`
-	Responsibilities []string `json:"responsibilities"`
-	Subdomains       []string `json:"subdomains,omitempty"`
-	DependsOn        []string `json:"depends_on,omitempty"`
+	Name             string      `json:"name"`
+	Description      string      `json:"description"`
+	KeyFiles         []string    `json:"key_files"`
+	Responsibilities []string    `json:"responsibilities"`
+	Subdomains       []Subdomain `json:"subdomains,omitempty"`
+	DependsOn        []string    `json:"depends_on,omitempty"`
 }
 
 // Stats holds codebase statistics.
