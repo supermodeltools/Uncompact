@@ -30,6 +30,13 @@ type Command struct {
 // PATH is prepended explicitly because Claude Code hooks run with a restricted environment
 // that typically does not include ~/go/bin or other user-specific binary directories.
 var uncompactHooks = map[string][]Hook{
+	"PreCompact": {
+		{
+			Hooks: []Command{
+				{Type: "command", Command: `bash -c 'export PATH="$HOME/go/bin:$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; uncompact pre-compact'`},
+			},
+		},
+	},
 	"Stop": {
 		{
 			Hooks: []Command{
@@ -191,7 +198,8 @@ func commandExistsInHooks(hookList []Hook, matches ...string) bool {
 
 // isAlreadyInstalled checks if ALL uncompact hooks are present.
 func isAlreadyInstalled(hooks map[string][]Hook) bool {
-	return commandExistsInHooks(hooks["Stop"], "uncompact run", "uncompact-hook.sh") &&
+	return commandExistsInHooks(hooks["PreCompact"], "uncompact pre-compact") &&
+		commandExistsInHooks(hooks["Stop"], "uncompact run", "uncompact-hook.sh") &&
 		commandExistsInHooks(hooks["UserPromptSubmit"], "uncompact show-cache", "show-hook.sh") &&
 		commandExistsInHooks(hooks["UserPromptSubmit"], "uncompact pregen")
 }
@@ -209,6 +217,8 @@ func mergeHooks(existing, toAdd map[string][]Hook) map[string][]Hook {
 			for _, cmd := range hook.Hooks {
 				matches := []string{cmd.Command}
 				switch event {
+				case "PreCompact":
+					matches = append(matches, "uncompact pre-compact")
 				case "Stop":
 					matches = append(matches, "uncompact run", "uncompact-hook.sh")
 				case "UserPromptSubmit":
