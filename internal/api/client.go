@@ -31,16 +31,10 @@ type Client struct {
 
 // SupermodelIR is the raw response from the Supermodel API /v1/graphs/supermodel endpoint.
 type SupermodelIR struct {
-	Repo     string           `json:"repo"`
-	Summary  irSummary        `json:"summary"`
-	Metadata irMetadata       `json:"metadata"`
-	Domains  []irDomain       `json:"domains"`
-}
-
-type irSummary struct {
-	FilesProcessed  int     `json:"filesProcessed"`
-	Functions       int     `json:"functions"`
-	PrimaryLanguage *string `json:"primaryLanguage"`
+	Repo     string         `json:"repo"`
+	Summary  map[string]any `json:"summary"`
+	Metadata irMetadata     `json:"metadata"`
+	Domains  []irDomain     `json:"domains"`
 }
 
 type irMetadata struct {
@@ -67,13 +61,21 @@ func (ir *SupermodelIR) toProjectGraph(projectName string) *ProjectGraph {
 	if len(ir.Metadata.Languages) > 0 {
 		lang = ir.Metadata.Languages[0]
 	}
-	if ir.Summary.PrimaryLanguage != nil && *ir.Summary.PrimaryLanguage != "" {
-		lang = *ir.Summary.PrimaryLanguage
+	if v, ok := ir.Summary["primaryLanguage"]; ok && v != nil {
+		if s, ok := v.(string); ok && s != "" {
+			lang = s
+		}
 	}
 
-	langMap := make(map[string]int, len(ir.Metadata.Languages))
-	for _, l := range ir.Metadata.Languages {
-		langMap[l] = 0 // count not available from API
+	// Extract integer fields from the free-form summary map.
+	// JSON numbers unmarshal as float64 in map[string]any.
+	summaryInt := func(key string) int {
+		if v, ok := ir.Summary[key]; ok {
+			if n, ok := v.(float64); ok {
+				return int(n)
+			}
+		}
+		return 0
 	}
 
 	domains := make([]Domain, 0, len(ir.Domains))
@@ -96,9 +98,9 @@ func (ir *SupermodelIR) toProjectGraph(projectName string) *ProjectGraph {
 		Language: lang,
 		Domains:  domains,
 		Stats: Stats{
-			TotalFiles:     ir.Summary.FilesProcessed,
-			TotalFunctions: ir.Summary.Functions,
-			Languages:      langMap,
+			TotalFiles:     summaryInt("filesProcessed"),
+			TotalFunctions: summaryInt("functions"),
+			Languages:      ir.Metadata.Languages,
 		},
 		UpdatedAt: time.Now(),
 	}
@@ -127,10 +129,9 @@ type Domain struct {
 
 // Stats holds codebase statistics.
 type Stats struct {
-	TotalFiles     int            `json:"total_files"`
-	TotalFunctions int            `json:"total_functions"`
-	TotalLines     int            `json:"total_lines"`
-	Languages      map[string]int `json:"languages,omitempty"`
+	TotalFiles     int      `json:"total_files"`
+	TotalFunctions int      `json:"total_functions"`
+	Languages      []string `json:"languages,omitempty"`
 }
 
 // JobStatus is the async envelope returned by the Supermodel API.

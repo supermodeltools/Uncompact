@@ -21,7 +21,7 @@ const contextBombTmpl = `# Uncompact Context — {{.ProjectName}}
 **Language:** {{.Graph.Language}}{{if .Graph.Framework}}
 **Framework:** {{.Graph.Framework}}{{end}}{{if .Graph.Description}}
 **Description:** {{.Graph.Description}}{{end}}
-**Codebase:** {{.Graph.Stats.TotalFiles}} files · {{.Graph.Stats.TotalFunctions}} functions · {{.Graph.Stats.TotalLines}} lines
+**Codebase:** {{.Graph.Stats.TotalFiles}} files · {{.Graph.Stats.TotalFunctions}} functions
 {{- if .Graph.Stats.Languages}}
 
 **Languages:** {{languageList .Graph.Stats.Languages}}{{end}}
@@ -73,12 +73,8 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 
 	funcMap := gotmpl.FuncMap{
 		"join": strings.Join,
-		"languageList": func(langs map[string]int) string {
-			parts := make([]string, 0, len(langs))
-			for lang, count := range langs {
-				parts = append(parts, fmt.Sprintf("%s (%d)", lang, count))
-			}
-			return strings.Join(parts, ", ")
+		"languageList": func(langs []string) string {
+			return strings.Join(langs, ", ")
 		},
 	}
 
