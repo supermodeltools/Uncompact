@@ -3,8 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"os/user"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -22,19 +20,7 @@ func init() {
 }
 
 func showCacheHandler(cmd *cobra.Command, args []string) error {
-	uid := os.Getuid()
-	var cacheID string
-	if uid == -1 {
-		// Windows: os.Getuid() always returns -1; fall back to username.
-		if u, err := user.Current(); err == nil {
-			cacheID = u.Username
-		} else {
-			cacheID = "windows"
-		}
-	} else {
-		cacheID = fmt.Sprintf("%d", uid)
-	}
-	cachePath := filepath.Join(os.TempDir(), fmt.Sprintf("uncompact-display-%s.txt", cacheID))
+	cachePath := displayCachePath()
 
 	data, err := os.ReadFile(cachePath)
 	if os.IsNotExist(err) {

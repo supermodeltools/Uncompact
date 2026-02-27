@@ -180,6 +180,11 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	// Emit context bomb to stdout
 	fmt.Print(output)
 
+	// Write to display cache so the UserPromptSubmit hook (show-cache) can display it.
+	if err := writeDisplayCache(output); err != nil {
+		logFn("[warn] display cache write error: %v", err)
+	}
+
 	// Log the injection
 	var staleLogTime *time.Time
 	if stale {
@@ -229,6 +234,10 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 	}
 
 	fmt.Print(output)
+
+	// Write to display cache so the UserPromptSubmit hook (show-cache) can display it.
+	_ = writeDisplayCache(output)
+
 	return nil
 }
 
