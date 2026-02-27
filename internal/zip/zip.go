@@ -11,19 +11,44 @@ import (
 )
 
 // skipDirs are directories to exclude from the repo zip.
+// Note: any directory whose name starts with "." is also skipped unconditionally
+// (see the filepath.Walk callback below), so dot-prefixed directories such as
+// .venv, .gradle, .turbo, .parcel-cache, .dart_tool, .nyc_output, .svelte-kit,
+// and .output are already excluded without needing explicit entries here.
 var skipDirs = map[string]bool{
-	".git":         true,
+	// VCS
+	".git": true,
+	// JavaScript / Node
 	"node_modules": true,
-	"vendor":       true,
-	".idea":        true,
-	".vscode":      true,
+	"dist":         true,
+	// Go
+	"vendor": true,
+	// IDE
+	".idea":   true,
+	".vscode": true,
+	// Python
 	"__pycache__":  true,
 	".pytest_cache": true,
-	"dist":         true,
-	"build":        true,
-	"target":       true,
-	".next":        true,
-	".nuxt":        true,
+	"venv":         true,
+	"env":          true,
+	// Java / Android
+	"build":  true,
+	"target": true,
+	// Elm
+	"elm-stuff": true,
+	// Elixir / OCaml
+	"_build": true,
+	// iOS
+	"Pods": true,
+	// Test coverage
+	".nyc_output": true,
+	"coverage":    true,
+	// Next.js / Nuxt / SvelteKit
+	".next":       true,
+	".nuxt":       true,
+	".svelte-kit": true,
+	".output":     true,
+	"out":         true,
 }
 
 // skipExts are file extensions to exclude (binaries, media, etc.)
