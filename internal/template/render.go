@@ -166,6 +166,9 @@ func buildDomainSection(d api.Domain) string {
 			}
 		}
 	}
+	if len(d.DependsOn) > 0 {
+		sb.WriteString(fmt.Sprintf("**Depends on:** %s\n", strings.Join(d.DependsOn, ", ")))
+	}
 	return sb.String()
 }
 
