@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Uncompact plugin hook — reinjects project context after Claude Code compaction.
-# Invoked by the Claude Code Stop hook via ${CLAUDE_PLUGIN_ROOT}/scripts/uncompact-hook.sh.
+# Invoked by the Claude Code SessionStart:compact hook.
 
 # Find the uncompact binary across common install paths.
 find_uncompact() {
@@ -28,13 +28,18 @@ if [ -z "$UNCOMPACT" ]; then
   exit 0
 fi
 
-# Build argument list.
-# Always enable --fallback so something is emitted even if the cache isn't warm
-# yet (e.g. first run after install before pregen completes) or the API is slow.
-ARGS=("run" "--fallback")
-
 # SUPERMODEL_API_KEY is read directly from the environment by the uncompact binary.
 # Do not pass it as a CLI argument to avoid exposing it in process listings (ps aux).
 
-# Execute uncompact run — stdout is injected into Claude Code's context after compaction.
-exec "$UNCOMPACT" "${ARGS[@]}"
+# Run uncompact and capture output.
+OUTPUT="$("$UNCOMPACT" run --fallback)"
+
+if [ -n "$OUTPUT" ]; then
+  # Emit to stdout — injected into Claude Code's context (AI-visible).
+  echo "$OUTPUT"
+
+  # Cache output for user-visible display on the next UserPromptSubmit.
+  # show-hook.sh picks this up and replays it into the chat transcript.
+  DISPLAY_CACHE="${TMPDIR:-/tmp}/uncompact-display-${UID:-$(id -u)}.txt"
+  echo "$OUTPUT" > "$DISPLAY_CACHE"
+fi
