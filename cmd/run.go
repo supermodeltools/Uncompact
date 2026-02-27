@@ -300,6 +300,13 @@ func runLocalMode(logFn func(string, ...interface{})) error {
 		logFn("[warn] display cache write error: %v", err)
 	}
 
+	// Write activity log entry (non-fatal on error).
+	_ = activitylog.Append(activitylog.Entry{
+		Timestamp:            time.Now().UTC(),
+		Project:              proj.RootDir,
+		ContextBombSizeBytes: len(output),
+	})
+
 	logFn("[debug] local context bomb emitted: %d tokens", tokens)
 	return nil
 }
