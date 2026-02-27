@@ -39,12 +39,19 @@ type SupermodelIR struct {
 }
 
 type irGraph struct {
-	Nodes []irNode `json:"nodes"`
+	Nodes         []irNode         `json:"nodes"`
+	Relationships []irRelationship `json:"relationships"`
 }
 
 type irNode struct {
 	Type string `json:"type"`
 	Name string `json:"name"`
+}
+
+type irRelationship struct {
+	Type   string `json:"type"`
+	Source string `json:"source"`
+	Target string `json:"target"`
 }
 
 type irMetadata struct {
@@ -53,11 +60,11 @@ type irMetadata struct {
 }
 
 type irDomain struct {
-	Name              string       `json:"name"`
-	DescriptionSummary string      `json:"descriptionSummary"`
-	KeyFiles          []string     `json:"keyFiles"`
-	Responsibilities  []string     `json:"responsibilities"`
-	Subdomains        []irSubdomain `json:"subdomains"`
+	Name               string        `json:"name"`
+	DescriptionSummary string        `json:"descriptionSummary"`
+	KeyFiles           []string      `json:"keyFiles"`
+	Responsibilities   []string      `json:"responsibilities"`
+	Subdomains         []irSubdomain `json:"subdomains"`
 }
 
 type irSubdomain struct {
@@ -88,6 +95,14 @@ func (ir *SupermodelIR) toProjectGraph(projectName string) *ProjectGraph {
 		return 0
 	}
 
+	// Build a map of domain → []dependsOn from DOMAIN_RELATES edges.
+	dependsOnMap := make(map[string][]string)
+	for _, rel := range ir.Graph.Relationships {
+		if rel.Type == "DOMAIN_RELATES" && rel.Source != "" && rel.Target != "" {
+			dependsOnMap[rel.Source] = append(dependsOnMap[rel.Source], rel.Target)
+		}
+	}
+
 	domains := make([]Domain, 0, len(ir.Domains))
 	for _, d := range ir.Domains {
 		subdomains := make([]Subdomain, 0, len(d.Subdomains))
@@ -103,6 +118,7 @@ func (ir *SupermodelIR) toProjectGraph(projectName string) *ProjectGraph {
 			KeyFiles:         d.KeyFiles,
 			Responsibilities: d.Responsibilities,
 			Subdomains:       subdomains,
+			DependsOn:        dependsOnMap[d.Name],
 		})
 	}
 
