@@ -74,7 +74,10 @@ var extToLanguage = map[string]string{
 // without calling any external APIs. It scans the file tree, groups files by
 // top-level directory to form domains, and reads README for a description.
 func BuildProjectGraph(ctx context.Context, rootDir, projectName string) (*api.ProjectGraph, error) {
-	extCounts, dirFiles, totalFiles := collectFiles(ctx, rootDir)
+	extCounts, dirFiles, totalFiles, err := collectFiles(ctx, rootDir)
+	if err != nil {
+		return nil, err
+	}
 
 	lang, languages := detectLanguages(extCounts)
 	desc := readDescription(rootDir)
@@ -113,12 +116,13 @@ func ReadClaudeMD(rootDir string) string {
 }
 
 // collectFiles walks the file tree and returns extension counts, files per top-level
-// directory, and the total file count.
-func collectFiles(ctx context.Context, rootDir string) (extCounts map[string]int, dirFiles map[string][]string, total int) {
+// directory, and the total file count. Returns an error if the walk is interrupted
+// (e.g. due to context cancellation).
+func collectFiles(ctx context.Context, rootDir string) (extCounts map[string]int, dirFiles map[string][]string, total int, err error) {
 	extCounts = make(map[string]int)
 	dirFiles = make(map[string][]string)
 
-	_ = filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
+	walkErr := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -163,7 +167,7 @@ func collectFiles(ctx context.Context, rootDir string) (extCounts map[string]int
 		return nil
 	})
 
-	return extCounts, dirFiles, total
+	return extCounts, dirFiles, total, walkErr
 }
 
 // detectLanguages returns the primary language and an ordered list of languages
