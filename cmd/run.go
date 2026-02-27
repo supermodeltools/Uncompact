@@ -15,6 +15,8 @@ import (
 	"github.com/supermodeltools/uncompact/internal/zip"
 )
 
+var postCompact bool
+
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Emit a context bomb to stdout (used by the Claude Code hook)",
@@ -30,6 +32,7 @@ On failure, it exits cleanly with no output to avoid disrupting the session.`,
 
 func init() {
 	rootCmd.AddCommand(runCmd)
+	runCmd.Flags().BoolVar(&postCompact, "post-compact", false, "Append acknowledgment instruction so Claude confirms context restoration in its response")
 }
 
 func runHandler(cmd *cobra.Command, args []string) error {
@@ -166,6 +169,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 		Stale:         stale,
 		StaleAt:       staleAt,
 		WorkingMemory: wm,
+		PostCompact:   postCompact,
 	}
 	output, tokens, err := tmpl.Render(graph, proj.Name, opts)
 	if err != nil {

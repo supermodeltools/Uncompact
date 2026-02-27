@@ -32,7 +32,8 @@ fi
 # Do not pass it as a CLI argument to avoid exposing it in process listings (ps aux).
 
 # Run uncompact and capture output.
-OUTPUT="$("$UNCOMPACT" run --fallback)"
+# --post-compact appends an instruction so Claude acknowledges restoration in its response.
+OUTPUT="$("$UNCOMPACT" run --fallback --post-compact)"
 
 DISPLAY_CACHE="${TMPDIR:-/tmp}/uncompact-display-${UID:-$(id -u)}.txt"
 

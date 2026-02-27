@@ -70,6 +70,7 @@ type RenderOptions struct {
 	Stale         bool
 	StaleAt       *time.Time
 	WorkingMemory *project.WorkingMemory
+	PostCompact   bool // append acknowledgment instruction for post-compact injection
 }
 
 // Render produces the context bomb Markdown, respecting the token budget.
@@ -121,12 +122,27 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 	fullText := full.String()
 	tokens := countTokens(fullText)
 
+	var result string
+	var resultTokens int
+
 	if tokens <= opts.MaxTokens {
-		return fullText, tokens, nil
+		result, resultTokens = fullText, tokens
+	} else {
+		// If over budget, truncate domains to fit
+		var err error
+		result, resultTokens, err = truncateToTokenBudget(graph, projectName, opts.MaxTokens, graph.Stats.CircularDependencyCycles, opts.WorkingMemory)
+		if err != nil {
+			return "", 0, err
+		}
 	}
 
-	// If over budget, truncate domains to fit
-	return truncateToTokenBudget(graph, projectName, opts.MaxTokens, graph.Stats.CircularDependencyCycles, opts.WorkingMemory)
+	if opts.PostCompact {
+		note := fmt.Sprintf("\n\n> [uncompact] Context restored after compact (~%d tokens). Please acknowledge at the start of your response with exactly: \"✓ Uncompact: context restored (~%d tokens)\"", resultTokens, resultTokens)
+		result += note
+		resultTokens = countTokens(result)
+	}
+
+	return result, resultTokens, nil
 }
 
 // truncateToTokenBudget progressively drops lower-priority content to fit the token budget.
