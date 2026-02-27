@@ -266,7 +266,9 @@ func New(baseURL, apiKey string, debug bool, logFn func(string, ...interface{}))
 func buildMultipartBody(projectName string, repoZip []byte) (bodyBytes []byte, contentType string, err error) {
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
-	_ = mw.WriteField("project_name", projectName)
+	if err = mw.WriteField("project_name", projectName); err != nil {
+		return nil, "", fmt.Errorf("writing project_name field: %w", err)
+	}
 	fw, err := mw.CreateFormFile("file", "repo.zip")
 	if err != nil {
 		return nil, "", fmt.Errorf("creating multipart field: %w", err)
