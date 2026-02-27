@@ -187,7 +187,7 @@ func commandExistsInHooks(hookList []Hook, matches ...string) bool {
 // isAlreadyInstalled checks if ALL uncompact hooks are present.
 func isAlreadyInstalled(hooks map[string][]Hook) bool {
 	return commandExistsInHooks(hooks["Stop"], "uncompact run", "uncompact-hook.sh") &&
-		commandExistsInHooks(hooks["UserPromptSubmit"], "uncompact show-cache")
+		commandExistsInHooks(hooks["UserPromptSubmit"], "uncompact show-cache", "show-hook.sh")
 }
 
 // mergeHooks adds hooks from toAdd into existing, skipping any whose commands
