@@ -123,19 +123,19 @@ func buildSnapshotContent(transcriptPath string, logFn func(string, ...interface
 			userMessages = append(userMessages, text)
 		}
 
-		// Extract file paths from any message
-		for _, word := range strings.Fields(text) {
-			word = strings.Trim(word, "`,\"'()[]")
-			if looksLikeFilePath(word) && !seenFiles[word] {
-				seenFiles[word] = true
-				filesInFocus = append(filesInFocus, word)
-				if len(filesInFocus) >= 10 {
-					break
+		// Extract file paths from any message (stop scanning words once we have 10,
+		// but always continue iterating lines so userMessages is fully collected).
+		if len(filesInFocus) < 10 {
+			for _, word := range strings.Fields(text) {
+				word = strings.Trim(word, "`,\"'()[]")
+				if looksLikeFilePath(word) && !seenFiles[word] {
+					seenFiles[word] = true
+					filesInFocus = append(filesInFocus, word)
+					if len(filesInFocus) >= 10 {
+						break
+					}
 				}
 			}
-		}
-		if len(filesInFocus) >= 10 {
-			break
 		}
 	}
 
