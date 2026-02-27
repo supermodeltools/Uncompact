@@ -37,7 +37,7 @@ func Write(projectRoot string, snap *SessionSnapshot) error {
 	ts := snap.Timestamp.UTC().Format(time.RFC3339)
 	content := headerPrefix + ts + headerSuffix + "\n" + snap.Content
 
-	return os.WriteFile(Path(projectRoot), []byte(content), 0644)
+	return os.WriteFile(Path(projectRoot), []byte(content), 0600)
 }
 
 // Read loads the session snapshot if it exists and is within the default TTL.
