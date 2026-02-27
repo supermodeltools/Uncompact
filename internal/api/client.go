@@ -308,12 +308,24 @@ func (c *Client) GetGraph(ctx context.Context, projectName string, repoZip []byt
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
-			return nil, fmt.Errorf("API request failed: %w", err)
+			c.logFn("[warn] poll attempt %d: request error (will retry): %v", attempt+1, err)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(10 * time.Second):
+			}
+			continue
 		}
 		respBody, readErr := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if readErr != nil {
-			return nil, fmt.Errorf("reading response: %w", readErr)
+			c.logFn("[warn] poll attempt %d: error reading response (will retry): %v", attempt+1, readErr)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(10 * time.Second):
+			}
+			continue
 		}
 
 		c.logFn("[debug] poll attempt %d: HTTP %d", attempt+1, resp.StatusCode)
@@ -427,12 +439,24 @@ func (c *Client) GetCircularDependencies(ctx context.Context, projectName string
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
-			return nil, fmt.Errorf("circular dependency request failed: %w", err)
+			c.logFn("[warn] circular dep poll attempt %d: request error (will retry): %v", attempt+1, err)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(10 * time.Second):
+			}
+			continue
 		}
 		respBody, readErr := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if readErr != nil {
-			return nil, fmt.Errorf("reading response: %w", readErr)
+			c.logFn("[warn] circular dep poll attempt %d: error reading response (will retry): %v", attempt+1, readErr)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(10 * time.Second):
+			}
+			continue
 		}
 
 		c.logFn("[debug] circular dep poll attempt %d: HTTP %d", attempt+1, resp.StatusCode)
