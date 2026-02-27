@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/supermodeltools/uncompact/internal/template"
 )
 
 var showCacheCmd = &cobra.Command{
@@ -39,7 +41,7 @@ func showCacheHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(data) > 0 {
-		approxTokens := len(data) / 4
+		approxTokens := template.CountTokens(string(data))
 		fmt.Printf("%s\n\n[uncompact] Context restored (~%d tokens)\n", data, approxTokens)
 	}
 	return nil
