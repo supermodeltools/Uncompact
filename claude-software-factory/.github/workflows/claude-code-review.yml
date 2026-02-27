@@ -1,0 +1,34 @@
+# Claude Code Review — AI-Powered PR Review
+#
+# When a pull request is opened or updated, this workflow runs Claude Code's
+# code-review plugin to analyze the diff and post review comments. This gives
+# every PR an automated first-pass review before human eyes see it.
+
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          use_claude_code_plugins: "code-review@claude-code-plugins"
+          claude_code_plugins_marketplace: "https://github.com/anthropics/claude-code.git"
+          direct_prompt: "/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}"
+          allowed_bots: "*"

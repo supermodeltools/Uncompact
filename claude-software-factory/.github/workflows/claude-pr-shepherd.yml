@@ -1,0 +1,102 @@
+# Claude PR Shepherd — Automated PR Fix & Merge
+#
+# Every 15 minutes, this workflow checks all open PRs. For each one it:
+#   1. Reads unresolved review comments (from CodeRabbit, humans, etc.)
+#   2. Applies fixes and commits them
+#   3. Checks CI status
+#   4. Merges via rebase when everything is green
+#
+# This is the "closer" — it turns reviewed PRs into merged code without
+# human intervention, while respecting CI gates and review feedback.
+
+name: Claude PR Shepherd
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  shepherd:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Shepherd open PRs
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          direct_prompt: |
+            You are the PR shepherd. Your job is to get open PRs merged.
+
+            Process each non-draft PR one at a time:
+
+            1. FIND OPEN PRs
+               Run: gh pr list --state open --json number,title,isDraft
+               Skip any draft PRs.
+
+            2. CHECK REVIEW COMMENTS
+               For each PR, fetch top-level unresolved comments:
+                 gh api repos/${{ github.repository }}/pulls/{number}/comments \
+                   --jq '.[] | select(.position != null) | {id: .id, path: .path, body: .body, user: .user.login}'
+               For each comment:
+               - Check out the PR branch
+               - Read the file at the mentioned path
+               - Determine if the comment is already addressed
+               - If not: apply the fix, commit with message "fix: address review comment on {path}"
+               - If already fixed or not actionable: reply explaining why
+
+            3. CHECK CI STATUS
+               Run: gh pr checks {number}
+               If any checks are failing:
+               - Read the failure logs
+               - Fix the root cause if possible
+               - Do NOT merge if CI is red
+
+            4. MERGE WHEN READY
+               Only merge when ALL of these are true:
+               - CI is passing (all checks green)
+               - No unresolved review comments remain
+               - PR is not a draft
+               - No merge conflicts
+               Command: gh pr merge {number} --rebase
+
+            Rules:
+            - Process ONE PR at a time
+            - Make focused, minimal commits (one per review comment)
+            - Never force-push to main/master
+            - Leave complex design decisions for humans — only fix clear, actionable items
+            - If a PR has merge conflicts, attempt rebase; if that fails, skip it
+          allowed_tools: |
+            Bash(gh pr list *)
+            Bash(gh pr view *)
+            Bash(gh pr checks *)
+            Bash(gh pr merge *)
+            Bash(gh api *)
+            Bash(git fetch *)
+            Bash(git checkout *)
+            Bash(git add *)
+            Bash(git commit *)
+            Bash(git push *)
+            Bash(git rebase *)
+            Bash(git log *)
+            Bash(git diff *)
+            Bash(git status)
+            Edit
+            Write
+            Read
+            Glob
+            Grep
+          # CUSTOMIZE: Add your build, lint, and test commands below:
+          # Bash(your-build-command)
+          # Bash(your-lint-command)
+          # Bash(your-test-command)

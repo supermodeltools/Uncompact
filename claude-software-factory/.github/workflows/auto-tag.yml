@@ -1,0 +1,74 @@
+# Auto-Tag — Semantic Versioning from Conventional Commits
+#
+# When code is pushed to main (typically via PR merge), this workflow reads
+# the commit message and bumps the version tag accordingly:
+#
+#   BREAKING CHANGE or type!:  → MAJOR (v2.0.0)
+#   feat:                      → MINOR (v1.1.0)
+#   anything else              → PATCH (v1.0.1)
+#
+# This is language-agnostic. It only creates git tags — pair it with your
+# own release workflow if you need build artifacts.
+
+name: Auto Tag
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute and push semantic version tag
+        run: |
+          git fetch --tags
+
+          # Get the latest semver tag, default to v0.0.0
+          LATEST_TAG=$(git tag -l 'v*' --sort=-v:refname | head -n1)
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG="v0.0.0"
+          fi
+
+          # Parse current version
+          VERSION="${LATEST_TAG#v}"
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          PATCH=$(echo "$VERSION" | cut -d. -f3)
+
+          # Read the head commit message
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+
+          # Determine bump type from conventional commit
+          if echo "$COMMIT_MSG" | grep -qE 'BREAKING CHANGE' || echo "$COMMIT_MSG" | grep -qE '^[a-z]+(\(.+\))?!:'; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif echo "$COMMIT_MSG" | grep -qE '^feat(\(.+\))?:'; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+
+          NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+
+          # Skip if this tag already exists
+          if git rev-parse "$NEW_TAG" >/dev/null 2>&1; then
+            echo "Tag $NEW_TAG already exists, skipping."
+            exit 0
+          fi
+
+          echo "Bumping $LATEST_TAG -> $NEW_TAG"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$NEW_TAG"
+          git push origin "$NEW_TAG"

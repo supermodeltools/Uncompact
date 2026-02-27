@@ -1,0 +1,28 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Dependencies (uncomment the ones you use)
+# node_modules/
+# vendor/
+# __pycache__/
+# *.pyc
+# .venv/
+
+# Build output (uncomment the ones you use)
+# dist/
+# build/
+# bin/
+# out/

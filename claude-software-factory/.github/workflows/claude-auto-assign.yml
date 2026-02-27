@@ -1,0 +1,61 @@
+# Claude Auto-Assign — Trigger Claude on New Issues
+#
+# When a new issue is opened, this workflow checks if the author is an org
+# member (or Claude itself). If so, it posts a comment mentioning @claude,
+# which triggers the main claude.yml workflow to begin implementation.
+#
+# This creates the bridge between "issue created" and "Claude starts working."
+
+name: Claude Auto-Assign
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  auto-assign:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Trigger Claude on new issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+
+            // Skip if the issue body already mentions @claude
+            if (issue.body && issue.body.includes('@claude')) {
+              console.log('Issue body already contains @claude, skipping.');
+              return;
+            }
+
+            // Always trigger for claude[bot]
+            if (issue.user.login === 'claude[bot]') {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: '@claude please implement this issue'
+              });
+              return;
+            }
+
+            // CUSTOMIZE: Change this to match your org or use an allowlist
+            // Check if the author is an org member
+            try {
+              const { status } = await github.rest.orgs.checkMembershipForUser({
+                org: context.repo.owner,
+                username: issue.user.login
+              });
+              if (status === 204 || status === 302) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: '@claude please implement this issue'
+                });
+              }
+            } catch (err) {
+              console.log(`User ${issue.user.login} is not an org member, skipping.`);
+            }

@@ -1,0 +1,74 @@
+# Claude Proactive Scanner — Automated Issue Discovery
+#
+# Once per hour, this workflow scans the codebase looking for bugs, security
+# issues, missing tests, performance problems, and TODO/FIXME comments.
+# It creates up to 3 issues per run, each ending with @claude so the
+# auto-assign workflow picks them up and feeds the factory loop.
+#
+# This is the "idea generator" — it keeps the pipeline fed even when
+# humans aren't writing issues.
+
+name: Claude Proactive Scanner
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Scan for issues
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          direct_prompt: |
+            You are a proactive code reviewer. Scan this codebase and find real, actionable problems.
+
+            WHAT TO LOOK FOR:
+            - Logic errors, unhandled errors, race conditions, edge cases
+            - Missing or inadequate tests
+            - Performance issues (N+1 queries, unnecessary allocations, blocking calls)
+            - Security concerns (injection, auth bypass, secrets in code, unsafe deserialization)
+            - TODO/FIXME comments that represent real work
+            - Feature gaps (incomplete implementations, missing error messages)
+
+            RULES:
+            1. First, check existing open issues: gh issue list --state open --json title,body
+            2. Never duplicate an issue that already exists (same root cause)
+            3. Create at most 3 issues per run — prioritize severity
+            4. Each issue must include:
+               - Clear title describing the problem
+               - Specific file paths and line numbers
+               - Explanation of impact
+               - Suggested approach (brief)
+               - End the body with: @claude please implement this
+            5. Label bugs as "bug", improvements as "enhancement"
+            6. Only file issues for real problems — no style nits, no speculative issues
+
+            CREATE ISSUES WITH:
+            gh issue create \
+              --repo ${{ github.repository }} \
+              --title "..." \
+              --body "..." \
+              --label "bug" or --label "enhancement"
+          allowed_tools: |
+            Bash(gh issue list *)
+            Bash(gh issue create *)
+            Read
+            Glob
+            Grep
+          # CUSTOMIZE: Add your build and lint commands if you want the scanner
+          # to verify issues by attempting builds:
+          # Bash(your-build-command)
+          # Bash(your-lint-command)
