@@ -242,7 +242,7 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 	defer store.Close()
 
 	// Try cache first
-	cachedGraph, fresh, _, _, err := store.Get(proj.Hash)
+	cachedGraph, fresh, expiresAt, _, err := store.Get(proj.Hash)
 	if err != nil {
 		return fmt.Errorf("reading cache: %w", err)
 	}
@@ -256,6 +256,7 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 		opts := tmpl.RenderOptions{
 			MaxTokens:     maxTokens,
 			Stale:         !fresh,
+			StaleAt:       expiresAt,
 			WorkingMemory: wm,
 		}
 		output, tokens, err := tmpl.Render(cachedGraph, proj.Name, opts)
