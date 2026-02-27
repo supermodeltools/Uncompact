@@ -13,6 +13,7 @@ import (
 // WorkingMemory holds situational context derived from git and GitHub state.
 type WorkingMemory struct {
 	Branch        string
+	DefaultBranch string
 	IssueNumber   int
 	IssueTitle    string
 	IssueBody     string   // truncated to ~500 chars
@@ -71,6 +72,7 @@ func GetWorkingMemory(ctx context.Context, rootDir string) *WorkingMemory {
 
 	wm := &WorkingMemory{
 		Branch:        branch,
+		DefaultBranch: base,
 		BranchCommits: commits,
 	}
 
