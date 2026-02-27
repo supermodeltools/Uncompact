@@ -3,6 +3,7 @@ package zip
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -97,32 +98,44 @@ type SkipReport struct {
 	OversizedFiles []string
 	// BudgetSkipped is the count of files skipped because the total size budget (10MB) was reached.
 	BudgetSkipped int
+	// OpenErrors is the count of files skipped because they could not be opened (e.g. permission denied).
+	OpenErrors int
 }
 
 // Truncated returns true if any files were excluded from the archive.
 func (s SkipReport) Truncated() bool {
-	return len(s.OversizedFiles) > 0 || s.BudgetSkipped > 0
+	return len(s.OversizedFiles) > 0 || s.BudgetSkipped > 0 || s.OpenErrors > 0
 }
+
+// errOpenFailed is returned by addFileToZip when the source file cannot be
+// opened. The caller should skip the file and increment SkipReport.OpenErrors
+// rather than aborting the archive.
+var errOpenFailed = errors.New("could not open file")
 
 // addFileToZip opens path, creates a zip entry named rel inside w, and copies
 // the file contents. It returns the number of bytes written. Using a helper
 // function ensures that defer f.Close() is scoped to each individual file
 // rather than accumulating until the outer RepoZip function returns.
+//
+// errOpenFailed is returned when the file cannot be opened; the caller may
+// choose to skip the file silently. All other errors (w.Create, io.Copy) are
+// fatal: they indicate the zip.Writer may be in a corrupt state and the
+// archive walk should be aborted.
 func addFileToZip(w *zip.Writer, path, rel string) (int64, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return 0, nil
+		return 0, errOpenFailed
 	}
 	defer f.Close()
 
 	zw, err := w.Create(rel)
 	if err != nil {
-		return 0, nil
+		return 0, err
 	}
 
 	n, err := io.Copy(zw, f)
 	if err != nil {
-		return 0, nil
+		return 0, err
 	}
 	return n, nil
 }
@@ -197,8 +210,12 @@ func RepoZip(root string) ([]byte, SkipReport, error) {
 		}
 
 		n, err := addFileToZip(w, path, rel)
-		if err != nil {
+		if errors.Is(err, errOpenFailed) {
+			report.OpenErrors++
 			return nil
+		}
+		if err != nil {
+			return err
 		}
 		totalSize += n
 		return nil
