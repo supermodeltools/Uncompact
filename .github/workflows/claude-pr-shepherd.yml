@@ -1,0 +1,78 @@
+name: Claude PR Shepherd
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  shepherd:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run Claude PR Shepherd
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          allowed_tools: 'Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh pr review:*),Bash(gh pr merge:*),Bash(gh pr checks:*),Bash(gh api:*),Bash(git *),Bash(go build:*),Bash(go vet:*),Bash(go mod tidy:*),Edit,Write,Read,Glob,Grep'
+          prompt: |
+            You are a PR shepherd. Your job is to get open pull requests reviewed, fixed, and merged.
+
+            ## Step 1: Find open PRs
+            Run: gh pr list --repo ${{ github.repository }} --state open --json number,title,headRefName,isDraft,reviewDecision,mergeable --limit 20
+
+            Skip any PRs that are drafts.
+
+            ## Step 2: For each open PR
+
+            ### Check CodeRabbit comments
+            Fetch unresolved review comments:
+              gh api repos/${{ github.repository }}/pulls/{number}/comments --jq '[.[] | select(.user.login == "coderabbitai[bot]") | {id, path, line, body, in_reply_to_id}]'
+
+            Only look at top-level comments (no `in_reply_to_id`). For each unresolved comment:
+            - Check out the PR branch: `git fetch origin {branch} && git checkout {branch}`
+            - Read the file at the relevant path
+            - Determine if the comment is already addressed (the code may have been fixed since the comment was posted)
+            - If not addressed: apply the fix, then stage and commit with message `fix: address CodeRabbit comment on {path}`
+            - If already addressed: reply to the comment via `gh api repos/${{ github.repository }}/pulls/{number}/comments --method POST` explaining it's resolved
+
+            ### Check CI status
+            Run: gh pr checks {number} --repo ${{ github.repository }}
+
+            If any checks are failing:
+            - Read the failure logs via `gh run view` or `gh api`
+            - Fix the root cause if it's a code issue
+            - Do not merge if CI is red
+
+            ### Attempt merge
+            If all of the following are true:
+            - CI checks passing
+            - No unresolved CodeRabbit comments
+            - PR is not a draft
+            - `mergeable` is not `CONFLICTING`
+
+            Then merge: gh pr merge {number} --repo ${{ github.repository }} --squash --auto
+
+            If there are merge conflicts, resolve them by checking out the branch, rebasing onto the base branch, fixing conflicts, and force-pushing.
+
+            ## Rules
+            - Work through PRs one at a time
+            - Make focused, minimal commits — one commit per CodeRabbit comment addressed
+            - Never force-push to main/master
+            - If a CodeRabbit comment requires a design decision beyond your judgement, leave it alone and move on
+            - Do not approve your own PRs — only merge when CI is green and CodeRabbit comments are resolved

@@ -1,0 +1,47 @@
+name: Claude Proactive Analysis
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude proactive analysis
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          allowed_tools: 'Bash(gh issue list:*),Bash(gh issue create:*),Bash(cat:*),Bash(find:*),Bash(go build:*),Bash(go vet:*)'
+          prompt: |
+            You are a proactive engineering assistant reviewing the Uncompact codebase for things to improve.
+
+            First, run `gh issue list --repo ${{ github.repository }} --state open --limit 50 --json title,body` to see what is already tracked. Do not create duplicates.
+
+            Then explore the codebase and look for:
+            - Bugs: logic errors, unhandled errors, race conditions, edge cases
+            - Missing tests
+            - Performance issues
+            - Security concerns
+            - Feature gaps (things the codebase is clearly building toward but hasn't finished)
+            - TODO/FIXME comments in code
+
+            For each finding, create a GitHub issue using:
+              gh issue create --repo ${{ github.repository }} --title "..." --body "..."
+
+            Rules:
+            - Create at most 3 issues per run to avoid spam
+            - Only create issues for concrete, actionable findings — no vague suggestions
+            - Include specific file paths and line numbers in the issue body
+            - Label bugs as "bug", features as "enhancement" using --label flag
+            - Do not create issues that duplicate anything already open
