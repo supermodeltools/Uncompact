@@ -311,6 +311,9 @@ func cacheClearHandler(cmd *cobra.Command, args []string) error {
 }
 
 func truncate(s string, n int) string {
+	if n <= 3 {
+		return s
+	}
 	runes := []rune(s)
 	if len(runes) <= n {
 		return s
