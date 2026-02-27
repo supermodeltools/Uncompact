@@ -1,6 +1,6 @@
 {
   "name": "uncompact",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Re-inject project context into Claude Code after compaction, powered by the Supermodel API.",
   "author": {"name": "Supermodel", "email": "abe@supermodel.software"},
   "homepage": "https://github.com/supermodeltools/Uncompact"
