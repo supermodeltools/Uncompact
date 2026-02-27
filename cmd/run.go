@@ -245,8 +245,8 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 	return nil
 }
 
-// fetchGraphWithCircularDeps calls GetGraph and GetCircularDependencies, storing
-// cycle count in Stats so it is cached alongside the graph.
+// fetchGraphWithCircularDeps calls GetGraph and GetCircularDependencies concurrently,
+// storing cycle count in Stats so it is cached alongside the graph.
 func fetchGraphWithCircularDeps(
 	ctx context.Context,
 	client *api.Client,
@@ -254,20 +254,42 @@ func fetchGraphWithCircularDeps(
 	repoZip []byte,
 	logFn func(string, ...interface{}),
 ) (*api.ProjectGraph, error) {
-	graph, err := client.GetGraph(ctx, projectName, repoZip)
-	if err != nil {
-		return nil, err
+	type graphResult struct {
+		graph *api.ProjectGraph
+		err   error
+	}
+	type circResult struct {
+		circDeps *api.CircularDependencyResponse
+		err      error
 	}
 
-	circDeps, err := client.GetCircularDependencies(ctx, projectName, repoZip)
-	if err != nil {
-		logFn("[warn] circular dependency check failed: %v", err)
-	} else if circDeps != nil {
-		graph.Stats.CircularDependencyCycles = len(circDeps.Cycles)
-		logFn("[debug] circular dependency cycles found: %d", graph.Stats.CircularDependencyCycles)
+	graphCh := make(chan graphResult, 1)
+	circCh := make(chan circResult, 1)
+
+	go func() {
+		g, err := client.GetGraph(ctx, projectName, repoZip)
+		graphCh <- graphResult{g, err}
+	}()
+
+	go func() {
+		c, err := client.GetCircularDependencies(ctx, projectName, repoZip)
+		circCh <- circResult{c, err}
+	}()
+
+	gr := <-graphCh
+	if gr.err != nil {
+		return nil, gr.err
 	}
 
-	return graph, nil
+	cr := <-circCh
+	if cr.err != nil {
+		logFn("[warn] circular dependency check failed: %v", cr.err)
+	} else if cr.circDeps != nil {
+		gr.graph.Stats.CircularDependencyCycles = len(cr.circDeps.Cycles)
+		logFn("[debug] circular dependency cycles found: %d", gr.graph.Stats.CircularDependencyCycles)
+	}
+
+	return gr.graph, nil
 }
 
 // silentExit returns nil (success) so we never block Claude Code sessions.
