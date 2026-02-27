@@ -15,15 +15,39 @@ type WorkingMemory struct {
 	IssueNumber   int
 	IssueTitle    string
 	IssueBody     string   // truncated to ~500 chars
-	BranchCommits []string // git log main..HEAD --oneline, max 10
-	ChangedFiles  []string // git diff --stat main..HEAD, file lines only
+	BranchCommits []string // git log <default>..HEAD --oneline, max 10
+	ChangedFiles  []string // git diff --stat <default>..HEAD, file lines only
 	Uncommitted   []string // git diff --stat, file lines only
 }
 
 var issueNumberRe = regexp.MustCompile(`issue-(\d+)`)
 
+// defaultBranch detects the repo's default branch name.
+// It first tries git symbolic-ref to read the remote HEAD, then falls back
+// to probing "main" and "master" in that order.
+func defaultBranch(rootDir string) string {
+	out, err := runGit(rootDir, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
+	if err == nil {
+		name := strings.TrimSpace(out)
+		// Strip "origin/" prefix
+		if idx := strings.Index(name, "/"); idx >= 0 {
+			name = name[idx+1:]
+		}
+		if name != "" {
+			return name
+		}
+	}
+	// Fallback: probe for main then master
+	for _, candidate := range []string{"main", "master"} {
+		if _, err := runGit(rootDir, "rev-parse", "--verify", candidate); err == nil {
+			return candidate
+		}
+	}
+	return "main"
+}
+
 // GetWorkingMemory derives situational context from git and GitHub.
-// Returns nil if the branch has no commits ahead of main or on error.
+// Returns nil if the branch has no commits ahead of the default branch or on error.
 func GetWorkingMemory(rootDir string) *WorkingMemory {
 	// Get current branch
 	branchOut, err := runGit(rootDir, "branch", "--show-current")
@@ -32,8 +56,10 @@ func GetWorkingMemory(rootDir string) *WorkingMemory {
 	}
 	branch := strings.TrimSpace(branchOut)
 
-	// Get commits ahead of main — if none, omit working memory entirely
-	commitsOut, err := runGit(rootDir, "log", "main..HEAD", "--oneline")
+	base := defaultBranch(rootDir)
+
+	// Get commits ahead of the default branch — if none, omit working memory entirely
+	commitsOut, err := runGit(rootDir, "log", base+"..HEAD", "--oneline")
 	if err != nil {
 		return nil
 	}
@@ -55,8 +81,8 @@ func GetWorkingMemory(rootDir string) *WorkingMemory {
 		}
 	}
 
-	// Changed files vs main
-	if out, err := runGit(rootDir, "diff", "--stat", "main..HEAD"); err == nil {
+	// Changed files vs default branch
+	if out, err := runGit(rootDir, "diff", "--stat", base+"..HEAD"); err == nil {
 		wm.ChangedFiles = parseStatLines(out)
 	}
 
