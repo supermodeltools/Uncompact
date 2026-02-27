@@ -49,7 +49,8 @@ func defaultBranch(ctx context.Context, rootDir string) string {
 }
 
 // GetWorkingMemory derives situational context from git and GitHub.
-// Returns nil if the branch has no commits ahead of the default branch or on error.
+// Returns nil if the branch has no commits ahead of the default branch and no
+// uncommitted changes, or on error.
 func GetWorkingMemory(ctx context.Context, rootDir string) *WorkingMemory {
 	// Get current branch
 	branchOut, err := runGit(ctx, rootDir, "branch", "--show-current")
@@ -60,14 +61,28 @@ func GetWorkingMemory(ctx context.Context, rootDir string) *WorkingMemory {
 
 	base := defaultBranch(ctx, rootDir)
 
-	// Get commits ahead of the default branch — if none, omit working memory entirely
+	// Get commits ahead of the default branch
 	commitsOut, err := runGit(ctx, rootDir, "log", base+"..HEAD", "--oneline")
 	if err != nil {
 		return nil
 	}
 	commits := parseLines(commitsOut, 10)
 	if len(commits) == 0 {
-		return nil
+		// No commits ahead — check for uncommitted changes before omitting entirely
+		uncommittedOut, uErr := runGit(ctx, rootDir, "diff", "HEAD", "--stat")
+		if uErr != nil {
+			return nil
+		}
+		uncommitted := parseStatLines(uncommittedOut, 20)
+		if len(uncommitted) == 0 {
+			return nil
+		}
+		// Has uncommitted changes but no commits ahead — return partial WorkingMemory
+		return &WorkingMemory{
+			Branch:        branch,
+			DefaultBranch: base,
+			Uncommitted:   uncommitted,
+		}
 	}
 
 	wm := &WorkingMemory{
