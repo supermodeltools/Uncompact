@@ -16,7 +16,8 @@ const contextBombTmpl = `# Uncompact Context — {{.ProjectName}}
 
 > Injected by Uncompact at {{.Timestamp}}{{if .Stale}} | ⚠️ STALE: last updated {{.StaleDuration}}{{end}}
 {{- if .Graph.Stats.CircularDependencyCycles}}
-> ⚠️ {{.Graph.Stats.CircularDependencyCycles}} circular dependency {{if eq .Graph.Stats.CircularDependencyCycles 1}}cycle{{else}}cycles{{end}} detected
+> ⚠️ {{.Graph.Stats.CircularDependencyCycles}} circular dependency {{if eq .Graph.Stats.CircularDependencyCycles 1}}cycle{{else}}cycles{{end}} detected{{range .Graph.Cycles}}
+> - {{join .Cycle " → "}}{{end}}
 {{- end}}
 
 ## Project Overview
@@ -182,7 +183,11 @@ func truncateToTokenBudget(
 		if circularCycles == 1 {
 			label = "cycle"
 		}
-		hdr.WriteString(fmt.Sprintf("> ⚠️ %d circular dependency %s detected\n\n", circularCycles, label))
+		hdr.WriteString(fmt.Sprintf("> ⚠️ %d circular dependency %s detected\n", circularCycles, label))
+		for _, c := range graph.Cycles {
+			hdr.WriteString(fmt.Sprintf("> - %s\n", strings.Join(c.Cycle, " → ")))
+		}
+		hdr.WriteString("\n")
 	}
 	hdr.WriteString(fmt.Sprintf(
 		"**Language:** %s · **Files:** %d · **Functions:** %d",

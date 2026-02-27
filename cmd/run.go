@@ -300,6 +300,7 @@ func fetchGraphWithCircularDeps(
 		logFn("[warn] circular dependency check failed: %v", cr.err)
 	} else if cr.circDeps != nil {
 		gr.graph.Stats.CircularDependencyCycles = len(cr.circDeps.Cycles)
+		gr.graph.Cycles = cr.circDeps.Cycles
 		logFn("[debug] circular dependency cycles found: %d", gr.graph.Stats.CircularDependencyCycles)
 	}
 
