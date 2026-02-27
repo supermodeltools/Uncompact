@@ -18,4 +18,7 @@ rm -f "$DISPLAY_CACHE"
 
 if [ -n "$OUTPUT" ]; then
   echo "$OUTPUT"
+  CHAR_COUNT="${#OUTPUT}"
+  APPROX_TOKENS=$(( CHAR_COUNT / 4 ))
+  echo "[uncompact] Context replayed from compact (~${APPROX_TOKENS} tokens)" >&2
 fi

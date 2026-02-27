@@ -27,18 +27,20 @@ type Command struct {
 }
 
 // uncompactHooks defines the hooks we inject.
+// PATH is prepended explicitly because Claude Code hooks run with a restricted environment
+// that typically does not include ~/go/bin or other user-specific binary directories.
 var uncompactHooks = map[string][]Hook{
 	"Stop": {
 		{
 			Hooks: []Command{
-				{Type: "command", Command: "uncompact run"},
+				{Type: "command", Command: `bash -c 'export PATH="$HOME/go/bin:$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; uncompact run'`},
 			},
 		},
 	},
 	"UserPromptSubmit": {
 		{
 			Hooks: []Command{
-				{Type: "command", Command: "uncompact show-cache"},
+				{Type: "command", Command: `bash -c 'export PATH="$HOME/go/bin:$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; uncompact show-cache'`},
 			},
 		},
 	},
