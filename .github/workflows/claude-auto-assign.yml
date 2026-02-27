@@ -27,7 +27,7 @@ jobs:
             }
 
             // Always trigger for the Claude bot itself
-            const isClaudeBot = author === 'app/claude' || author.startsWith('claude');
+            const isClaudeBot = author === 'claude[bot]';
 
             let isMember = false;
             if (!isClaudeBot) {
