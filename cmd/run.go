@@ -88,10 +88,13 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	go func(path string) {
 		pruneStore, err := cache.Open(path)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "[warn] cache prune: failed to open store: %v\n", err)
 			return
 		}
 		defer pruneStore.Close()
-		_ = pruneStore.Prune()
+		if err := pruneStore.Prune(); err != nil {
+			fmt.Fprintf(os.Stderr, "[warn] cache prune: %v\n", err)
+		}
 	}(dbPath)
 
 	// Check cache
