@@ -86,12 +86,12 @@ func GetWorkingMemory(ctx context.Context, rootDir string) *WorkingMemory {
 
 	// Changed files vs default branch
 	if out, err := runGit(ctx, rootDir, "diff", "--stat", base+"..HEAD"); err == nil {
-		wm.ChangedFiles = parseStatLines(out)
+		wm.ChangedFiles = parseStatLines(out, 20)
 	}
 
 	// Uncommitted changes (staged and unstaged)
 	if out, err := runGit(ctx, rootDir, "diff", "HEAD", "--stat"); err == nil {
-		wm.Uncommitted = parseStatLines(out)
+		wm.Uncommitted = parseStatLines(out, 20)
 	}
 
 	return wm
@@ -114,13 +114,16 @@ func parseLines(s string, max int) []string {
 }
 
 // parseStatLines returns file lines from `git diff --stat` output,
-// skipping the summary line (which doesn't contain '|').
-func parseStatLines(s string) []string {
+// skipping the summary line (which doesn't contain '|'), capped at max entries.
+func parseStatLines(s string, max int) []string {
 	var lines []string
 	for _, line := range strings.Split(strings.TrimSpace(s), "\n") {
 		line = strings.TrimSpace(line)
 		if line != "" && strings.Contains(line, "|") {
 			lines = append(lines, line)
+			if len(lines) >= max {
+				break
+			}
 		}
 	}
 	return lines
