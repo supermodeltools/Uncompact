@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -77,6 +78,32 @@ func pregenHandler(cmd *cobra.Command, args []string) error {
 		_, fresh, _, _, err := store.Get(proj.Hash)
 		if err == nil && fresh {
 			logFn("[debug] cache is fresh, skipping pregen")
+			return nil
+		}
+	}
+
+	// Acquire an exclusive file lock so that only one pregen instance makes the
+	// API call at a time. If another instance already holds the lock (i.e. it is
+	// mid-flight on the same long-poll job), exit silently rather than firing a
+	// redundant request.
+	lockPath := filepath.Join(filepath.Dir(dbPath), "pregen.lock")
+	unlock, acquired, err := acquirePregenLock(lockPath)
+	if err != nil {
+		logFn("[warn] lock error: %v", err)
+		return nil
+	}
+	if !acquired {
+		logFn("[debug] another pregen is already running, exiting silently")
+		return nil
+	}
+	defer unlock()
+
+	// Re-check freshness now that we hold the lock — a racing pregen instance may
+	// have populated the cache while we were waiting for the lock to be released.
+	if !forceRefresh {
+		_, fresh, _, _, err := store.Get(proj.Hash)
+		if err == nil && fresh {
+			logFn("[debug] cache populated by concurrent pregen, skipping API call")
 			return nil
 		}
 	}
