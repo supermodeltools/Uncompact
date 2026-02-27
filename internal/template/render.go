@@ -53,7 +53,7 @@ const contextBombTmpl = `# Uncompact Context — {{.ProjectName}}
 **Issue #{{.WorkingMemory.IssueNumber}}:** {{.WorkingMemory.IssueTitle}}{{if .WorkingMemory.IssueBody}}
 > {{.WorkingMemory.IssueBody}}{{end}}
 {{- end}}{{- if .WorkingMemory.ChangedFiles}}
-**Changes on branch (vs main):**
+**Changes on branch (vs {{.WorkingMemory.DefaultBranch}}):**
 {{range .WorkingMemory.ChangedFiles}}  {{.}}
 {{end}}{{- end}}{{- if .WorkingMemory.BranchCommits}}
 **Recent commits:**
@@ -292,8 +292,12 @@ func buildWorkingMemorySection(wm *project.WorkingMemory, budget int) string {
 
 	var changedSection string
 	if len(wm.ChangedFiles) > 0 {
+		defaultBranch := wm.DefaultBranch
+		if defaultBranch == "" {
+			defaultBranch = "main"
+		}
 		var sb strings.Builder
-		sb.WriteString("\n**Changes on branch (vs main):**\n")
+		sb.WriteString(fmt.Sprintf("\n**Changes on branch (vs %s):**\n", defaultBranch))
 		for _, f := range wm.ChangedFiles {
 			sb.WriteString(fmt.Sprintf("  %s\n", f))
 		}
