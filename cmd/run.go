@@ -268,6 +268,9 @@ func fetchGraphWithCircularDeps(
 	repoZip []byte,
 	logFn func(string, ...interface{}),
 ) (*api.ProjectGraph, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	type graphResult struct {
 		graph *api.ProjectGraph
 		err   error
