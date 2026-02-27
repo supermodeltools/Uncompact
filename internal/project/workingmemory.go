@@ -140,8 +140,8 @@ func ghFetchIssue(wm *WorkingMemory, issueNumber int) {
 	}
 	wm.IssueTitle = result.Title
 	body := result.Body
-	if len(body) > 500 {
-		body = body[:500] + "..."
+	if len([]rune(body)) > 500 {
+		body = string([]rune(body)[:500]) + "..."
 	}
 	wm.IssueBody = body
 }
