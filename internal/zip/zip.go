@@ -43,11 +43,13 @@ const maxFileSize = 512 * 1024 // 512KB per file
 const maxTotalSize = 10 * 1024 * 1024 // 10MB total
 
 // RepoZip creates an in-memory ZIP archive of the project root.
-func RepoZip(root string) ([]byte, error) {
+// The second return value is true if the archive was truncated due to maxTotalSize.
+func RepoZip(root string) ([]byte, bool, error) {
 	var buf bytes.Buffer
 	w := zip.NewWriter(&buf)
 
 	var totalSize int64
+	var truncated bool
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -92,6 +94,7 @@ func RepoZip(root string) ([]byte, error) {
 
 		// Check total size budget
 		if totalSize+info.Size() > maxTotalSize {
+			truncated = true
 			return io.EOF // signal we're done
 		}
 
@@ -115,12 +118,12 @@ func RepoZip(root string) ([]byte, error) {
 	})
 
 	if err != nil && err != io.EOF {
-		return nil, err
+		return nil, false, err
 	}
 
 	if err := w.Close(); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	return buf.Bytes(), nil
+	return buf.Bytes(), truncated, nil
 }

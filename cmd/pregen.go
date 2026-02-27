@@ -83,10 +83,13 @@ func pregenHandler(cmd *cobra.Command, args []string) error {
 
 	logFn("[debug] fetching project graph from Supermodel API...")
 
-	zipData, err := zip.RepoZip(proj.RootDir)
+	zipData, truncated, err := zip.RepoZip(proj.RootDir)
 	if err != nil {
 		logFn("[warn] zip error: %v", err)
 		return nil
+	}
+	if truncated {
+		logFn("[warn] repo zip truncated at 10 MB limit — large repos may produce incomplete graph analysis")
 	}
 
 	apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
@@ -110,10 +113,13 @@ func pregenFetch(cfg *config.Config, proj *project.Info, logFn func(string, ...i
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 
-	zipData, err := zip.RepoZip(proj.RootDir)
+	zipData, truncated, err := zip.RepoZip(proj.RootDir)
 	if err != nil {
 		logFn("[warn] zip error: %v", err)
 		return nil
+	}
+	if truncated {
+		logFn("[warn] repo zip truncated at 10 MB limit — large repos may produce incomplete graph analysis")
 	}
 
 	apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
