@@ -233,24 +233,58 @@ func buildDiff(before, after string) string {
 	beforeLines := strings.Split(before, "\n")
 	afterLines := strings.Split(after, "\n")
 
-	// Simple line-by-line diff
-	beforeSet := make(map[string]bool)
-	for _, l := range beforeLines {
-		beforeSet[l] = true
+	// LCS-based sequential diff so that repeated tokens like braces and
+	// "type": "command" are correctly attributed to newly-added blocks.
+	m, n := len(beforeLines), len(afterLines)
+	dp := make([][]int, m+1)
+	for i := range dp {
+		dp[i] = make([]int, n+1)
 	}
-	afterSet := make(map[string]bool)
-	for _, l := range afterLines {
-		afterSet[l] = true
-	}
-
-	for _, l := range beforeLines {
-		if !afterSet[l] {
-			sb.WriteString("- " + l + "\n")
+	for i := 1; i <= m; i++ {
+		for j := 1; j <= n; j++ {
+			if beforeLines[i-1] == afterLines[j-1] {
+				dp[i][j] = dp[i-1][j-1] + 1
+			} else if dp[i-1][j] >= dp[i][j-1] {
+				dp[i][j] = dp[i-1][j]
+			} else {
+				dp[i][j] = dp[i][j-1]
+			}
 		}
 	}
-	for _, l := range afterLines {
-		if !beforeSet[l] {
-			sb.WriteString("+ " + l + "\n")
+
+	// Walk back through the LCS table to reconstruct the diff.
+	type diffOp struct {
+		added   bool
+		removed bool
+		line    string
+	}
+	ops := make([]diffOp, 0, m+n)
+	i, j := m, n
+	for i > 0 || j > 0 {
+		switch {
+		case i > 0 && j > 0 && beforeLines[i-1] == afterLines[j-1]:
+			ops = append(ops, diffOp{line: beforeLines[i-1]})
+			i--
+			j--
+		case j > 0 && (i == 0 || dp[i][j-1] >= dp[i-1][j]):
+			ops = append(ops, diffOp{added: true, line: afterLines[j-1]})
+			j--
+		default:
+			ops = append(ops, diffOp{removed: true, line: beforeLines[i-1]})
+			i--
+		}
+	}
+
+	// ops were accumulated in reverse order.
+	for k, l := 0, len(ops)-1; k < l; k, l = k+1, l-1 {
+		ops[k], ops[l] = ops[l], ops[k]
+	}
+
+	for _, o := range ops {
+		if o.removed {
+			sb.WriteString("- " + o.line + "\n")
+		} else if o.added {
+			sb.WriteString("+ " + o.line + "\n")
 		}
 	}
 	return sb.String()
