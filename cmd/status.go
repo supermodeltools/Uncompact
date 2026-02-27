@@ -223,6 +223,9 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("project detection failed: %w", err)
 	}
 
+	// Gather working memory from git and GitHub (failures are silent)
+	wm := project.GetWorkingMemory(gitCtx, proj.RootDir)
+
 	dbPath, err := config.DBPath()
 	if err != nil {
 		return err
@@ -246,8 +249,9 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 			fmt.Fprintln(os.Stderr, "[dry-run] serving cached graph")
 		}
 		opts := tmpl.RenderOptions{
-			MaxTokens: maxTokens,
-			Stale:     !fresh,
+			MaxTokens:     maxTokens,
+			Stale:         !fresh,
+			WorkingMemory: wm,
 		}
 		output, tokens, err := tmpl.Render(cachedGraph, proj.Name, opts)
 		if err != nil {
