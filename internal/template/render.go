@@ -69,7 +69,7 @@ const contextBombTmpl = `# Uncompact Context — {{.ProjectName}}
 type RenderOptions struct {
 	MaxTokens     int
 	Stale         bool
-	StaleAt       *time.Time
+	StaleAt       *time.Time // time the data was originally fetched (for "last updated X ago" banner)
 	WorkingMemory *project.WorkingMemory
 	PostCompact   bool // append acknowledgment instruction for post-compact injection
 }

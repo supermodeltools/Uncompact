@@ -104,7 +104,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	var staleAt *time.Time
 
 	if !forceRefresh {
-		cached, fresh, expiresAt, fetchedAt, err := store.Get(proj.Hash)
+		cached, fresh, _, fetchedAt, err := store.Get(proj.Hash)
 		if err != nil {
 			logFn("[warn] cache read error: %v", err)
 		} else if cached != nil {
@@ -114,7 +114,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 				logFn("[debug] serving fresh cached graph")
 			} else {
 				stale = true
-				staleAt = expiresAt // when the cache entry expired
+				staleAt = fetchedAt // when the data was originally fetched
 				source = "stale_cache"
 				logFn("[debug] serving stale cached graph (will refresh in background if API available)")
 
