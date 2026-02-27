@@ -219,15 +219,6 @@ func truncateToTokenBudget(
 	return result, countTokens(result), nil
 }
 
-func buildCriticalFilesSection(files []api.CriticalFile) string {
-	var sb strings.Builder
-	sb.WriteString("\n\n## Critical Files\n")
-	for i, f := range files {
-		sb.WriteString(fmt.Sprintf("%d. %s — %d relationships\n", i+1, f.Path, f.RelationshipCount))
-	}
-	return sb.String()
-}
-
 func buildDomainSection(d api.Domain) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("\n### %s\n%s\n", d.Name, d.Description))
