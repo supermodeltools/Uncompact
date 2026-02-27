@@ -132,11 +132,20 @@ func truncateToTokenBudget(
 
 	// Include critical files section before domain map — it's high-priority read order context.
 	if len(graph.CriticalFiles) > 0 {
-		criticalSection := buildCriticalFilesSection(graph.CriticalFiles)
-		criticalTokens := countTokens(criticalSection)
-		if criticalTokens <= remaining {
-			sb.WriteString(criticalSection)
-			remaining -= criticalTokens
+		header := "\n\n## Critical Files\n"
+		headerTokens := countTokens(header)
+		if headerTokens <= remaining {
+			sb.WriteString(header)
+			remaining -= headerTokens
+			for i, f := range graph.CriticalFiles {
+				line := fmt.Sprintf("%d. %s — %d relationships\n", i+1, f.Path, f.RelationshipCount)
+				lineTokens := countTokens(line)
+				if lineTokens > remaining {
+					break
+				}
+				sb.WriteString(line)
+				remaining -= lineTokens
+			}
 		}
 	}
 
