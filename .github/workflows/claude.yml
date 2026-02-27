@@ -36,6 +36,9 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
+          # Allow the claude-auto-assign bot to trigger this workflow
+          allowed_bots: "claude[bot]"
+
           additional_permissions: |
             actions: read
 
