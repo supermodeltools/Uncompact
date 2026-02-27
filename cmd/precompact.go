@@ -156,8 +156,9 @@ func buildSnapshotMarkdown(userMessages, filesInFocus []string) string {
 		for _, m := range userMessages {
 			// Flatten to single line and truncate
 			m = strings.Join(strings.Fields(m), " ")
-			if len(m) > 200 {
-				m = m[:197] + "..."
+			runes := []rune(m)
+			if len(runes) > 200 {
+				m = string(runes[:197]) + "..."
 			}
 			sb.WriteString(fmt.Sprintf("- %s\n", m))
 		}
