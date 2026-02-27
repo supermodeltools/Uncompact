@@ -115,7 +115,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		defer cancel()
 
-		zipData, err := zip.RepoZip(proj.RootDir)
+		zipData, truncated, err := zip.RepoZip(proj.RootDir)
 		if err != nil {
 			logFn("[warn] zip error: %v", err)
 			if !stale || graph == nil {
@@ -126,6 +126,9 @@ func runHandler(cmd *cobra.Command, args []string) error {
 			}
 			// else: fall through to use stale cache
 		} else {
+			if truncated {
+				logFn("[warn] repo zip truncated at 10 MB limit — large repos may produce incomplete graph analysis")
+			}
 			apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
 			freshGraph, err := fetchGraphWithCircularDeps(ctx, apiClient, proj.Name, zipData, logFn)
 			if err != nil {
@@ -189,13 +192,16 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
-	zipData, err := zip.RepoZip(proj.RootDir)
+	zipData, truncated, err := zip.RepoZip(proj.RootDir)
 	if err != nil {
 		logFn("[warn] zip error: %v", err)
 		if fallback {
 			printFallback(proj.Name)
 		}
 		return silentExit()
+	}
+	if truncated {
+		logFn("[warn] repo zip truncated at 10 MB limit — large repos may produce incomplete graph analysis")
 	}
 
 	apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
