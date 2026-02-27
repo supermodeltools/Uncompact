@@ -16,6 +16,7 @@ import (
 )
 
 var postCompact bool
+var maxStale time.Duration
 
 var runCmd = &cobra.Command{
 	Use:   "run",
@@ -33,6 +34,7 @@ On failure, it exits cleanly with no output to avoid disrupting the session.`,
 func init() {
 	rootCmd.AddCommand(runCmd)
 	runCmd.Flags().BoolVar(&postCompact, "post-compact", false, "Append acknowledgment instruction so Claude confirms context restoration in its response")
+	runCmd.Flags().DurationVar(&maxStale, "max-stale", 24*time.Hour, "Maximum age of stale cache to serve when API is unavailable (0 = no limit)")
 }
 
 func runHandler(cmd *cobra.Command, args []string) error {
@@ -99,7 +101,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	var staleAt *time.Time
 
 	if !forceRefresh {
-		cached, fresh, expiresAt, err := store.Get(proj.Hash)
+		cached, fresh, expiresAt, fetchedAt, err := store.Get(proj.Hash)
 		if err != nil {
 			logFn("[warn] cache read error: %v", err)
 		} else if cached != nil {
@@ -112,6 +114,15 @@ func runHandler(cmd *cobra.Command, args []string) error {
 				staleAt = expiresAt // when the cache entry expired
 				source = "stale_cache"
 				logFn("[debug] serving stale cached graph (will refresh in background if API available)")
+
+				// Enforce max-stale: if the cached data is older than allowed, discard it.
+				if maxStale > 0 && fetchedAt != nil && time.Since(*fetchedAt) > maxStale {
+					age := time.Since(*fetchedAt).Round(time.Minute)
+					logFn("[warn] stale cache too old (fetched %v ago, max-stale %v) — treating as cache miss", age, maxStale)
+					graph = nil
+					stale = false
+					staleAt = nil
+				}
 			}
 		}
 	}

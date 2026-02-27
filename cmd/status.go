@@ -125,7 +125,7 @@ func statusHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	// Cache freshness
-	graph, fresh, _, err := store.Get(proj.Hash)
+	graph, fresh, _, _, err := store.Get(proj.Hash)
 	if err != nil {
 		fmt.Printf("Cache:    error (%v)\n", err)
 		return nil
@@ -237,7 +237,7 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 	defer store.Close()
 
 	// Try cache first
-	cachedGraph, fresh, _, err := store.Get(proj.Hash)
+	cachedGraph, fresh, _, _, err := store.Get(proj.Hash)
 	if err != nil {
 		return fmt.Errorf("reading cache: %w", err)
 	}

@@ -107,30 +107,30 @@ func (s *Store) migrate() error {
 }
 
 // Get retrieves a cached graph for the given project hash.
-// Returns (graph, isFresh, expiresAt, nil) — graph may be stale but non-nil.
-func (s *Store) Get(projectHash string) (*api.ProjectGraph, bool, *time.Time, error) {
+// Returns (graph, isFresh, expiresAt, fetchedAt, nil) — graph may be stale but non-nil.
+func (s *Store) Get(projectHash string) (*api.ProjectGraph, bool, *time.Time, *time.Time, error) {
 	row := s.db.QueryRow(`
-		SELECT graph_json, expires_at
+		SELECT graph_json, fetched_at, expires_at
 		FROM graph_cache
 		WHERE project_hash = ?`,
 		projectHash,
 	)
 
 	var graphJSON string
-	var expiresAt time.Time
-	if err := row.Scan(&graphJSON, &expiresAt); err == sql.ErrNoRows {
-		return nil, false, nil, nil
+	var fetchedAt, expiresAt time.Time
+	if err := row.Scan(&graphJSON, &fetchedAt, &expiresAt); err == sql.ErrNoRows {
+		return nil, false, nil, nil, nil
 	} else if err != nil {
-		return nil, false, nil, err
+		return nil, false, nil, nil, err
 	}
 
 	var graph api.ProjectGraph
 	if err := json.Unmarshal([]byte(graphJSON), &graph); err != nil {
-		return nil, false, nil, err
+		return nil, false, nil, nil, err
 	}
 
 	isFresh := time.Now().Before(expiresAt)
-	return &graph, isFresh, &expiresAt, nil
+	return &graph, isFresh, &expiresAt, &fetchedAt, nil
 }
 
 // Set stores a graph for the given project hash with the default TTL.
