@@ -283,13 +283,11 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	zipData, truncated, err := zip.RepoZip(proj.RootDir)
+	zipData, skipReport, err := zip.RepoZip(proj.RootDir)
 	if err != nil {
 		return fmt.Errorf("zip error: %w", err)
 	}
-	if truncated {
-		fmt.Fprintln(os.Stderr, "[dry-run] WARNING: repo zip truncated at 10 MB limit — large repos may produce incomplete graph analysis")
-	}
+	logZipSkips(skipReport)
 
 	logFn := makeLogger()
 	apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)

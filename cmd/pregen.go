@@ -114,14 +114,12 @@ func pregenHandler(cmd *cobra.Command, args []string) error {
 
 	logFn("[debug] fetching project graph from Supermodel API...")
 
-	zipData, truncated, err := zip.RepoZip(proj.RootDir)
+	zipData, skipReport, err := zip.RepoZip(proj.RootDir)
 	if err != nil {
 		logFn("[warn] zip error: %v", err)
 		return nil
 	}
-	if truncated {
-		logFn("[warn] repo zip truncated at 10 MB limit — large repos may produce incomplete graph analysis")
-	}
+	logZipSkips(skipReport)
 
 	apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
 	graph, err := fetchGraphWithCircularDeps(ctx, apiClient, proj.Name, zipData)

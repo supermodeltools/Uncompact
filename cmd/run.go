@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -136,7 +137,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
 
-		zipData, truncated, err := zip.RepoZip(proj.RootDir)
+		zipData, skipReport, err := zip.RepoZip(proj.RootDir)
 		if err != nil {
 			logFn("[warn] zip error: %v", err)
 			if !stale || graph == nil {
@@ -147,9 +148,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 			}
 			// else: fall through to use stale cache
 		} else {
-			if truncated {
-				fmt.Fprintf(os.Stderr, "[warn] repo zip truncated at 10 MB limit — large repos may produce incomplete graph analysis\n")
-			}
+			logZipSkips(skipReport)
 			apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
 			freshGraph, err := fetchGraphWithCircularDeps(ctx, apiClient, proj.Name, zipData)
 			if err != nil {
@@ -219,7 +218,7 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	zipData, truncated, err := zip.RepoZip(proj.RootDir)
+	zipData, skipReport, err := zip.RepoZip(proj.RootDir)
 	if err != nil {
 		logFn("[warn] zip error: %v", err)
 		if fallback {
@@ -227,9 +226,7 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 		}
 		return silentExit()
 	}
-	if truncated {
-		fmt.Fprintf(os.Stderr, "[warn] repo zip truncated at 10 MB limit — large repos may produce incomplete graph analysis\n")
-	}
+	logZipSkips(skipReport)
 
 	apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
 	graph, err := fetchGraphWithCircularDeps(ctx, apiClient, proj.Name, zipData)
@@ -283,6 +280,26 @@ func printFallback(projectName string) {
 	}
 	fmt.Printf("# Uncompact Context — %s\n\n> Context unavailable (API or cache error). Run `uncompact run --debug` to diagnose.\n",
 		projectName)
+}
+
+// logZipSkips prints diagnostic warnings for any files excluded from the zip.
+func logZipSkips(report zip.SkipReport) {
+	if len(report.OversizedFiles) > 0 {
+		examples := report.OversizedFiles
+		if len(examples) > 3 {
+			examples = examples[:3]
+		}
+		names := strings.Join(examples, ", ")
+		if len(report.OversizedFiles) > 3 {
+			names += ", ..."
+		}
+		fmt.Fprintf(os.Stderr, "[warn] zip: skipped %d file(s) over 512KB (%s)\n",
+			len(report.OversizedFiles), names)
+	}
+	if report.BudgetSkipped > 0 {
+		fmt.Fprintf(os.Stderr, "[warn] zip truncated: %d additional file(s) excluded — total exceeded 10MB\n",
+			report.BudgetSkipped)
+	}
 }
 
 // makeLogger returns a logging function that writes to stderr if debug is enabled.

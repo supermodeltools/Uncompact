@@ -66,14 +66,28 @@ func buildGitFileSet(root string) map[string]bool {
 	return files
 }
 
+// SkipReport describes files that were excluded from the ZIP archive.
+type SkipReport struct {
+	// OversizedFiles are relative paths of files skipped because they exceed maxFileSize (512KB).
+	OversizedFiles []string
+	// BudgetSkipped is the count of files skipped because the total size budget (10MB) was reached.
+	BudgetSkipped int
+}
+
+// Truncated returns true if any files were excluded from the archive.
+func (s SkipReport) Truncated() bool {
+	return len(s.OversizedFiles) > 0 || s.BudgetSkipped > 0
+}
+
 // RepoZip creates an in-memory ZIP archive of the project root.
-// The second return value is true if the archive was truncated due to maxTotalSize.
-func RepoZip(root string) ([]byte, bool, error) {
+// The second return value describes any files that were excluded from the archive.
+func RepoZip(root string) ([]byte, SkipReport, error) {
 	var buf bytes.Buffer
 	w := zip.NewWriter(&buf)
 
 	var totalSize int64
-	var truncated bool
+	var report SkipReport
+	var budgetExceeded bool
 
 	// Build the set of git-tracked/unignored files so we can respect .gitignore.
 	// gitFiles is nil when git is unavailable; in that case we fall back to the
@@ -121,15 +135,16 @@ func RepoZip(root string) ([]byte, bool, error) {
 			return nil
 		}
 
-		// Skip large files
+		// Skip large files, recording the path so callers can report them.
 		if info.Size() > maxFileSize {
+			report.OversizedFiles = append(report.OversizedFiles, rel)
 			return nil
 		}
 
-		// Check total size budget; skip this file but keep walking so that
-		// smaller files later in the tree can still be included.
-		if totalSize+info.Size() > maxTotalSize {
-			truncated = true
+		// Check total size budget; once exceeded, count remaining files but don't add them.
+		if budgetExceeded || totalSize+info.Size() > maxTotalSize {
+			budgetExceeded = true
+			report.BudgetSkipped++
 			return nil
 		}
 
@@ -152,13 +167,13 @@ func RepoZip(root string) ([]byte, bool, error) {
 		return nil
 	})
 
-	if err != nil && err != io.EOF {
-		return nil, false, err
+	if err != nil {
+		return nil, SkipReport{}, err
 	}
 
 	if err := w.Close(); err != nil {
-		return nil, false, err
+		return nil, SkipReport{}, err
 	}
 
-	return buf.Bytes(), truncated, nil
+	return buf.Bytes(), report, nil
 }
