@@ -6,19 +6,25 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 const (
-	EnvAPIKey   = "SUPERMODEL_API_KEY"
-	APIBaseURL  = "https://api.supermodeltools.com"
+	EnvAPIKey    = "SUPERMODEL_API_KEY"
+	EnvMode      = "UNCOMPACT_MODE"
+	APIBaseURL   = "https://api.supermodeltools.com"
 	DashboardURL = "https://dashboard.supermodeltools.com"
+
+	ModeLocal = "local"
+	ModeAPI   = "api"
 )
 
 // Config holds the Uncompact configuration.
 type Config struct {
-	APIKey   string `json:"api_key"`
-	BaseURL  string `json:"base_url,omitempty"`
-	MaxTokens int   `json:"max_tokens,omitempty"`
+	APIKey    string `json:"api_key"`
+	BaseURL   string `json:"base_url,omitempty"`
+	MaxTokens int    `json:"max_tokens,omitempty"`
+	Mode      string `json:"mode,omitempty"` // "local" or "api"; empty = auto-detect
 }
 
 // ConfigDir returns the XDG-compatible config directory.
@@ -133,6 +139,11 @@ func Load(flagAPIKey string) (*Config, error) {
 		cfg.APIKey = envKey
 	}
 
+	// Override mode with env var
+	if envMode := os.Getenv(EnvMode); envMode != "" {
+		cfg.Mode = strings.ToLower(strings.TrimSpace(envMode))
+	}
+
 	// Override with flag
 	if flagAPIKey != "" {
 		cfg.APIKey = flagAPIKey
@@ -169,4 +180,24 @@ func Save(cfg *Config) error {
 // IsAuthenticated returns true if an API key is configured.
 func (c *Config) IsAuthenticated() bool {
 	return c.APIKey != ""
+}
+
+// EffectiveMode returns the resolved operation mode.
+// flagMode (from --mode flag) takes precedence over the config Mode field,
+// which takes precedence over auto-detection.
+// Auto-detection: defaults to ModeLocal when no API key is configured.
+func (c *Config) EffectiveMode(flagMode string) string {
+	mode := c.Mode
+	if flagMode != "" {
+		mode = strings.ToLower(strings.TrimSpace(flagMode))
+	}
+	switch mode {
+	case ModeLocal, ModeAPI:
+		return mode
+	}
+	// Auto-detect: default to local if no API key configured
+	if !c.IsAuthenticated() {
+		return ModeLocal
+	}
+	return ModeAPI
 }

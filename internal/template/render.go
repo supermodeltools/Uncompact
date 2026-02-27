@@ -18,7 +18,7 @@ const contextBombTmpl = `# Uncompact Context — {{.ProjectName}}
 {{.SessionSnapshot.Content}}
 {{- end}}
 
-> Injected by Uncompact at {{.Timestamp}}{{if .Stale}} | ⚠️ STALE: last updated {{.StaleDuration}}{{end}}
+> Injected by Uncompact at {{.Timestamp}}{{if .LocalMode}} | local mode (set SUPERMODEL_API_KEY for AI-powered features){{end}}{{if .Stale}} | ⚠️ STALE: last updated {{.StaleDuration}}{{end}}
 {{- if .Graph.Stats.CircularDependencyCycles}}
 > ⚠️ {{.Graph.Stats.CircularDependencyCycles}} circular dependency {{if eq .Graph.Stats.CircularDependencyCycles 1}}cycle{{else}}cycles{{end}} detected{{range .Graph.Cycles}}
 > - {{join .Cycle " → "}}{{end}}
@@ -49,7 +49,11 @@ const contextBombTmpl = `# Uncompact Context — {{.ProjectName}}
 {{end}}{{end}}{{if .Subdomains}}**Subdomains:**
 {{range .Subdomains}}- {{.Name}}{{if .Description}}: {{.Description}}{{end}}
 {{end}}{{end}}{{if .DependsOn}}**Depends on:** {{join .DependsOn ", "}}
-{{end}}{{end}}{{if .WorkingMemory}}
+{{end}}{{end}}{{- if .ClaudeMD}}
+## Project Instructions (CLAUDE.md)
+
+{{.ClaudeMD}}
+{{- end}}{{if .WorkingMemory}}
 ## Working Memory
 
 **Branch:** {{.WorkingMemory.Branch}}
@@ -77,6 +81,8 @@ type RenderOptions struct {
 	WorkingMemory   *project.WorkingMemory
 	PostCompact     bool // append acknowledgment instruction for post-compact injection
 	SessionSnapshot *snapshot.SessionSnapshot
+	ClaudeMD        string // raw CLAUDE.md content (local mode)
+	LocalMode       bool   // whether running in local mode (shows informational banner)
 }
 
 // Render produces the context bomb Markdown, respecting the token budget.
@@ -95,6 +101,8 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 		StaleDuration   string
 		WorkingMemory   *project.WorkingMemory
 		SessionSnapshot *snapshot.SessionSnapshot
+		ClaudeMD        string
+		LocalMode       bool
 	}{
 		ProjectName:     projectName,
 		Timestamp:       now.Format("2006-01-02 15:04:05 UTC"),
@@ -102,6 +110,8 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 		Stale:           opts.Stale,
 		WorkingMemory:   opts.WorkingMemory,
 		SessionSnapshot: opts.SessionSnapshot,
+		ClaudeMD:        opts.ClaudeMD,
+		LocalMode:       opts.LocalMode,
 	}
 
 	if opts.Stale && opts.StaleAt != nil {
@@ -138,7 +148,7 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 	} else {
 		// If over budget, truncate domains to fit
 		var err error
-		result, resultTokens, err = truncateToTokenBudget(graph, projectName, opts.MaxTokens, graph.Stats.CircularDependencyCycles, opts.WorkingMemory, opts.SessionSnapshot)
+		result, resultTokens, err = truncateToTokenBudget(graph, projectName, opts.MaxTokens, graph.Stats.CircularDependencyCycles, opts.WorkingMemory, opts.SessionSnapshot, opts.ClaudeMD)
 		if err != nil {
 			return "", 0, err
 		}
@@ -158,7 +168,7 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 			if tokens <= budget {
 				result, resultTokens = fullText, tokens
 			} else {
-				truncated, truncatedTokens, truncErr := truncateToTokenBudget(graph, projectName, budget, graph.Stats.CircularDependencyCycles, opts.WorkingMemory, opts.SessionSnapshot)
+				truncated, truncatedTokens, truncErr := truncateToTokenBudget(graph, projectName, budget, graph.Stats.CircularDependencyCycles, opts.WorkingMemory, opts.SessionSnapshot, opts.ClaudeMD)
 				if truncErr != nil {
 					return "", 0, truncErr
 				}
@@ -181,6 +191,7 @@ func truncateToTokenBudget(
 	circularCycles int,
 	wm *project.WorkingMemory,
 	snap *snapshot.SessionSnapshot,
+	claudeMD string,
 ) (string, int, error) {
 
 	// Build a minimal required header
@@ -259,6 +270,19 @@ func truncateToTokenBudget(
 		sb.WriteString("\n\n## Domain Map\n")
 		for _, s := range domainSections {
 			sb.WriteString(s)
+		}
+	}
+
+	// CLAUDE.md — include if it fits within remaining budget
+	if claudeMD != "" {
+		header := "\n\n## Project Instructions (CLAUDE.md)\n\n"
+		headerTokens := CountTokens(header)
+		contentTokens := CountTokens(claudeMD)
+		if headerTokens+contentTokens <= remaining {
+			sb.WriteString(header)
+			sb.WriteString(claudeMD)
+			sb.WriteString("\n")
+			remaining -= headerTokens + contentTokens + 1
 		}
 	}
 

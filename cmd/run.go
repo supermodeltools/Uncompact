@@ -12,6 +12,7 @@ import (
 	"github.com/supermodeltools/uncompact/internal/api"
 	"github.com/supermodeltools/uncompact/internal/cache"
 	"github.com/supermodeltools/uncompact/internal/config"
+	"github.com/supermodeltools/uncompact/internal/local"
 	"github.com/supermodeltools/uncompact/internal/project"
 	"github.com/supermodeltools/uncompact/internal/snapshot"
 	tmpl "github.com/supermodeltools/uncompact/internal/template"
@@ -50,6 +51,14 @@ func runHandler(cmd *cobra.Command, args []string) error {
 		return silentExit()
 	}
 
+	effectiveMode := cfg.EffectiveMode(mode)
+	logFn("[debug] mode: %s", effectiveMode)
+
+	if effectiveMode == config.ModeLocal {
+		return runLocalMode(logFn)
+	}
+
+	// API mode requires authentication
 	if !cfg.IsAuthenticated() {
 		logFn("[warn] no API key configured — run 'uncompact auth login' to authenticate")
 		if fallback {
@@ -237,6 +246,59 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	_ = store.LogInjection(proj.Hash, proj.Name, tokens, source, staleLogTime)
 
 	logFn("[debug] context bomb emitted: %d tokens, source: %s", tokens, source)
+	return nil
+}
+
+// runLocalMode generates a context bomb from local repository analysis only,
+// requiring no API key. It prints a one-time informational note to stderr.
+func runLocalMode(logFn func(string, ...interface{})) error {
+	fmt.Fprintln(os.Stderr, "Running in local mode. Set SUPERMODEL_API_KEY and run 'uncompact auth login' to enable AI-powered features.")
+
+	gitCtx, gitCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer gitCancel()
+
+	proj, err := project.Detect(gitCtx, "")
+	if err != nil {
+		logFn("[warn] project detection failed: %v", err)
+		return silentExit()
+	}
+	logFn("[debug] project: %s (local mode)", proj.Name)
+
+	wmCtx, wmCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer wmCancel()
+	wm := project.GetWorkingMemory(wmCtx, proj.RootDir)
+
+	localCtx, localCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer localCancel()
+
+	graph, err := local.BuildProjectGraph(localCtx, proj.RootDir, proj.Name)
+	if err != nil {
+		logFn("[warn] local graph build failed: %v", err)
+		return silentExit()
+	}
+
+	claudeMD := local.ReadClaudeMD(proj.RootDir)
+
+	opts := tmpl.RenderOptions{
+		MaxTokens:     maxTokens,
+		WorkingMemory: wm,
+		PostCompact:   postCompact,
+		ClaudeMD:      claudeMD,
+		LocalMode:     true,
+	}
+	output, tokens, err := tmpl.Render(graph, proj.Name, opts)
+	if err != nil {
+		logFn("[warn] render error: %v", err)
+		return silentExit()
+	}
+
+	fmt.Print(output)
+
+	if err := writeDisplayCache(output); err != nil {
+		logFn("[warn] display cache write error: %v", err)
+	}
+
+	logFn("[debug] local context bomb emitted: %d tokens", tokens)
 	return nil
 }
 
