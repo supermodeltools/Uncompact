@@ -15,7 +15,7 @@
         "name": "Supermodel",
         "email": "abe@supermodel.software"
       },
-      "source": ".",
+      "source": {"source": "url", "url": "https://github.com/supermodeltools/Uncompact.git"},
       "category": "productivity"
     }
   ]
