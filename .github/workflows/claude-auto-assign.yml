@@ -18,16 +18,28 @@ jobs:
           script: |
             const author = context.payload.issue.user.login;
             const org = context.repo.owner;
+            const body = context.payload.issue.body || '';
 
-            let isMember = false;
-            try {
-              await github.rest.orgs.checkMembershipForUser({ org, username: author });
-              isMember = true;
-            } catch (e) {
-              isMember = false;
+            // Already has @claude — no need to add it
+            if (body.includes('@claude')) {
+              console.log('Issue body already contains @claude, skipping.');
+              return;
             }
 
-            if (!isMember) {
+            // Always trigger for the Claude bot itself
+            const isClaudeBot = author === 'app/claude' || author.startsWith('claude');
+
+            let isMember = false;
+            if (!isClaudeBot) {
+              try {
+                await github.rest.orgs.checkMembershipForUser({ org, username: author });
+                isMember = true;
+              } catch (e) {
+                isMember = false;
+              }
+            }
+
+            if (!isClaudeBot && !isMember) {
               console.log(`Skipping: ${author} is not a member of ${org}`);
               return;
             }

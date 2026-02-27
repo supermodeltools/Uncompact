@@ -45,3 +45,4 @@ jobs:
             - Include specific file paths and line numbers in the issue body
             - Label bugs as "bug", features as "enhancement" using --label flag
             - Do not create issues that duplicate anything already open
+            - Always end every issue body with a blank line followed by: @claude please implement this
