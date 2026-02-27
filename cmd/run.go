@@ -151,7 +151,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 				fmt.Fprintf(os.Stderr, "[warn] repo zip truncated at 10 MB limit — large repos may produce incomplete graph analysis\n")
 			}
 			apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
-			freshGraph, err := fetchGraphWithCircularDeps(ctx, apiClient, proj.Name, zipData, logFn)
+			freshGraph, err := fetchGraphWithCircularDeps(ctx, apiClient, proj.Name, zipData)
 			if err != nil {
 				logFn("[warn] API error: %v", err)
 				if graph == nil {
@@ -232,7 +232,7 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 	}
 
 	apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
-	graph, err := fetchGraphWithCircularDeps(ctx, apiClient, proj.Name, zipData, logFn)
+	graph, err := fetchGraphWithCircularDeps(ctx, apiClient, proj.Name, zipData)
 	if err != nil {
 		logFn("[warn] API error: %v", err)
 		if fallback {
@@ -259,55 +259,16 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 	return nil
 }
 
-// fetchGraphWithCircularDeps calls GetGraph and GetCircularDependencies concurrently,
-// storing cycle count in Stats so it is cached alongside the graph.
+// fetchGraphWithCircularDeps fetches the project graph and circular dependency
+// analysis via a single multipart upload. It delegates to GetGraphAndCircularDeps
+// which builds the request body once and runs both analyses concurrently.
 func fetchGraphWithCircularDeps(
 	ctx context.Context,
 	client *api.Client,
 	projectName string,
 	repoZip []byte,
-	logFn func(string, ...interface{}),
 ) (*api.ProjectGraph, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	type graphResult struct {
-		graph *api.ProjectGraph
-		err   error
-	}
-	type circResult struct {
-		circDeps *api.CircularDependencyResponse
-		err      error
-	}
-
-	graphCh := make(chan graphResult, 1)
-	circCh := make(chan circResult, 1)
-
-	go func() {
-		g, err := client.GetGraph(ctx, projectName, repoZip)
-		graphCh <- graphResult{g, err}
-	}()
-
-	go func() {
-		c, err := client.GetCircularDependencies(ctx, projectName, repoZip)
-		circCh <- circResult{c, err}
-	}()
-
-	gr := <-graphCh
-	if gr.err != nil {
-		return nil, gr.err
-	}
-
-	cr := <-circCh
-	if cr.err != nil {
-		logFn("[warn] circular dependency check failed: %v", cr.err)
-	} else if cr.circDeps != nil {
-		gr.graph.Stats.CircularDependencyCycles = len(cr.circDeps.Cycles)
-		gr.graph.Cycles = cr.circDeps.Cycles
-		logFn("[debug] circular dependency cycles found: %d", gr.graph.Stats.CircularDependencyCycles)
-	}
-
-	return gr.graph, nil
+	return client.GetGraphAndCircularDeps(ctx, projectName, repoZip)
 }
 
 // silentExit returns nil (success) so we never block Claude Code sessions.

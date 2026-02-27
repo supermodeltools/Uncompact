@@ -484,6 +484,89 @@ func (c *Client) pollJob(
 	return fmt.Errorf("job did not complete after %d attempts", maxPollAttempts)
 }
 
+// GetGraphAndCircularDeps builds the multipart request body once and concurrently
+// fetches both the project graph and circular dependency analysis. Sharing the same
+// body bytes for both requests halves the memory needed to build the upload payload
+// and makes the single-upload intent explicit — without this method, callers that
+// invoke GetGraph and GetCircularDependencies independently would build and upload
+// the full zip twice (up to 20 MB of upload traffic per cache miss).
+func (c *Client) GetGraphAndCircularDeps(ctx context.Context, projectName string, repoZip []byte) (*ProjectGraph, error) {
+	c.logFn("[debug] submitting repo to Supermodel API (%d bytes)", len(repoZip))
+
+	// Build the multipart body once. Both concurrent pollJob calls share the same
+	// underlying bytes via independent bytes.NewReader calls — safe because
+	// bytes.NewReader does not modify the slice.
+	bodyBytes, contentType, err := buildMultipartBody(projectName, repoZip)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	type graphResult struct {
+		graph *ProjectGraph
+		err   error
+	}
+	type circResult struct {
+		circDeps *CircularDependencyResponse
+		err      error
+	}
+
+	graphCh := make(chan graphResult, 1)
+	circCh := make(chan circResult, 1)
+
+	go func() {
+		var graph *ProjectGraph
+		err := c.pollJob(ctx, "/v1/graphs/supermodel", bodyBytes, contentType, uuid.NewString(),
+			func(raw *json.RawMessage) error {
+				if raw == nil {
+					return fmt.Errorf("job completed but no graph data returned")
+				}
+				var ir SupermodelIR
+				if err := json.Unmarshal(*raw, &ir); err != nil {
+					return fmt.Errorf("parsing SupermodelIR result: %w", err)
+				}
+				graph = ir.toProjectGraph(projectName)
+				return nil
+			},
+			nil,
+		)
+		graphCh <- graphResult{graph, err}
+	}()
+
+	go func() {
+		var result *CircularDependencyResponse
+		err := c.pollJob(ctx, "/v1/graphs/circular-dependencies", bodyBytes, contentType, uuid.NewString(),
+			func(raw *json.RawMessage) error {
+				result = &CircularDependencyResponse{}
+				if raw == nil {
+					return nil
+				}
+				return json.Unmarshal(*raw, result)
+			},
+			func() error { return nil }, // 404/405 → endpoint unavailable, return nil, nil
+		)
+		circCh <- circResult{result, err}
+	}()
+
+	gr := <-graphCh
+	if gr.err != nil {
+		return nil, gr.err
+	}
+
+	cr := <-circCh
+	if cr.err != nil {
+		c.logFn("[warn] circular dependency check failed: %v", cr.err)
+	} else if cr.circDeps != nil {
+		gr.graph.Stats.CircularDependencyCycles = len(cr.circDeps.Cycles)
+		gr.graph.Cycles = cr.circDeps.Cycles
+		c.logFn("[debug] circular dependency cycles found: %d", gr.graph.Stats.CircularDependencyCycles)
+	}
+
+	return gr.graph, nil
+}
+
 // GetGraph submits the repo zip and retrieves the project graph, handling async polling.
 func (c *Client) GetGraph(ctx context.Context, projectName string, repoZip []byte) (*ProjectGraph, error) {
 	c.logFn("[debug] submitting repo to Supermodel API (%d bytes)", len(repoZip))
