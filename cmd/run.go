@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/supermodeltools/uncompact/internal/activitylog"
 	"github.com/supermodeltools/uncompact/internal/api"
 	"github.com/supermodeltools/uncompact/internal/cache"
 	"github.com/supermodeltools/uncompact/internal/config"
@@ -205,6 +206,14 @@ func runHandler(cmd *cobra.Command, args []string) error {
 		logFn("[warn] display cache write error: %v", err)
 	}
 
+	// Write activity log entry (non-fatal on error).
+	_ = activitylog.Append(activitylog.Entry{
+		Timestamp:              time.Now().UTC(),
+		Project:                proj.RootDir,
+		ContextBombSizeBytes:   len(output),
+		SessionSnapshotPresent: wm != nil,
+	})
+
 	// Log the injection
 	var staleLogTime *time.Time
 	if stale {
@@ -255,6 +264,14 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 
 	// Write to display cache so the UserPromptSubmit hook (show-cache) can display it.
 	_ = writeDisplayCache(output)
+
+	// Write activity log entry (non-fatal on error).
+	_ = activitylog.Append(activitylog.Entry{
+		Timestamp:              time.Now().UTC(),
+		Project:                proj.RootDir,
+		ContextBombSizeBytes:   len(output),
+		SessionSnapshotPresent: wm != nil,
+	})
 
 	return nil
 }
