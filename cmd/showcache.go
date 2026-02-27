@@ -22,16 +22,21 @@ func init() {
 func showCacheHandler(cmd *cobra.Command, args []string) error {
 	cachePath := displayCachePath()
 
-	data, err := os.ReadFile(cachePath)
-	if os.IsNotExist(err) {
-		return nil // Nothing to show — silent exit.
+	// Atomically claim the cache file via rename so concurrent invocations
+	// cannot both read it (TOCTOU race fix).
+	tmpPath := cachePath + ".consuming"
+	if err := os.Rename(cachePath, tmpPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil // Another invocation already consumed it — silent exit.
+		}
+		return nil // Rename failed — silent exit to avoid blocking Claude Code.
 	}
+
+	data, err := os.ReadFile(tmpPath)
+	os.Remove(tmpPath) // Clean up the temp file regardless of read outcome.
 	if err != nil {
 		return nil // Read error — silent exit to avoid blocking Claude Code.
 	}
-
-	// Consume the cache (one-shot display).
-	os.Remove(cachePath)
 
 	if len(data) > 0 {
 		approxTokens := len(data) / 4
