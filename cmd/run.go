@@ -253,6 +253,8 @@ func runHandler(cmd *cobra.Command, args []string) error {
 
 // runLocalMode generates a context bomb from local repository analysis only,
 // requiring no API key. It prints a one-time informational note to stderr.
+// On cache hit the local graph build is skipped entirely; on miss the result
+// is written back to cache so the next invocation is instant.
 func runLocalMode(logFn func(string, ...interface{})) error {
 	fmt.Fprintln(os.Stderr, "Running in local mode. Set SUPERMODEL_API_KEY and run 'uncompact auth login' to enable AI-powered features.")
 
@@ -270,13 +272,49 @@ func runLocalMode(logFn func(string, ...interface{})) error {
 	defer wmCancel()
 	wm := project.GetWorkingMemory(wmCtx, proj.RootDir)
 
-	localCtx, localCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer localCancel()
+	// Open cache — failures are non-fatal; we fall back to a live build.
+	var store *cache.Store
+	if dbPath, err := config.DBPath(); err != nil {
+		logFn("[warn] cannot open cache: %v", err)
+	} else if s, err := cache.Open(dbPath); err != nil {
+		logFn("[warn] cache open error: %v", err)
+	} else {
+		store = s
+		defer store.Close()
+	}
 
-	graph, err := local.BuildProjectGraph(localCtx, proj.RootDir, proj.Name)
-	if err != nil {
-		logFn("[warn] local graph build failed: %v", err)
-		return silentExit()
+	var graph *api.ProjectGraph
+	source := "local"
+
+	// Check for a fresh cached graph to avoid rebuilding.
+	if store != nil && !forceRefresh {
+		cached, fresh, _, _, err := store.Get(proj.Hash)
+		if err != nil {
+			logFn("[warn] cache read error: %v", err)
+		} else if cached != nil && fresh {
+			graph = cached
+			source = "cache"
+			logFn("[debug] serving fresh cached local graph")
+		}
+	}
+
+	// Build from local analysis on cache miss.
+	if graph == nil {
+		localCtx, localCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer localCancel()
+
+		built, err := local.BuildProjectGraph(localCtx, proj.RootDir, proj.Name)
+		if err != nil {
+			logFn("[warn] local graph build failed: %v", err)
+			return silentExit()
+		}
+		graph = built
+
+		if store != nil {
+			if err := store.Set(proj.Hash, proj.Name, graph); err != nil {
+				logFn("[warn] cache write error: %v", err)
+			}
+		}
 	}
 
 	claudeMD := local.ReadClaudeMD(proj.RootDir)
@@ -307,7 +345,11 @@ func runLocalMode(logFn func(string, ...interface{})) error {
 		ContextBombSizeBytes: len(output),
 	})
 
-	logFn("[debug] local context bomb emitted: %d tokens", tokens)
+	if store != nil {
+		_ = store.LogInjection(proj.Hash, proj.Name, tokens, source, nil)
+	}
+
+	logFn("[debug] local context bomb emitted: %d tokens, source: %s", tokens, source)
 	return nil
 }
 

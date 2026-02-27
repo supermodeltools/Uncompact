@@ -9,6 +9,7 @@ import (
 	"github.com/supermodeltools/uncompact/internal/api"
 	"github.com/supermodeltools/uncompact/internal/cache"
 	"github.com/supermodeltools/uncompact/internal/config"
+	"github.com/supermodeltools/uncompact/internal/local"
 	"github.com/supermodeltools/uncompact/internal/project"
 	"github.com/supermodeltools/uncompact/internal/zip"
 )
@@ -40,6 +41,11 @@ func pregenHandler(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		logFn("[warn] config error: %v", err)
 		return nil // silent exit — never block hooks
+	}
+
+	effectiveMode := cfg.EffectiveMode(mode)
+	if effectiveMode == config.ModeLocal {
+		return pregenLocalMode(logFn)
 	}
 
 	if !cfg.IsAuthenticated() {
@@ -134,5 +140,58 @@ func pregenHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	logFn("[debug] pregen complete: graph cached for %s", proj.Name)
+	return nil
+}
+
+// pregenLocalMode builds and caches the project graph using local repository
+// analysis only, with no API call required. Mirrors the API-mode flow so that
+// subsequent `run` invocations can serve the cached result instantly.
+func pregenLocalMode(logFn func(string, ...interface{})) error {
+	gitCtx, gitCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer gitCancel()
+
+	proj, err := project.Detect(gitCtx, "")
+	if err != nil {
+		logFn("[warn] project detection failed: %v", err)
+		return nil
+	}
+	logFn("[debug] local pregen for project: %s (hash: %s)", proj.Name, proj.Hash)
+
+	dbPath, err := config.DBPath()
+	if err != nil {
+		logFn("[warn] cannot open cache, skipping pregen: %v", err)
+		return nil
+	}
+
+	store, err := cache.Open(dbPath)
+	if err != nil {
+		logFn("[warn] cache open error, skipping pregen: %v", err)
+		return nil
+	}
+	defer store.Close()
+
+	if !forceRefresh {
+		_, fresh, _, _, err := store.Get(proj.Hash)
+		if err == nil && fresh {
+			logFn("[debug] local cache is fresh, skipping pregen")
+			return nil
+		}
+	}
+
+	localCtx, localCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer localCancel()
+
+	graph, err := local.BuildProjectGraph(localCtx, proj.RootDir, proj.Name)
+	if err != nil {
+		logFn("[warn] local graph build failed: %v", err)
+		return nil
+	}
+
+	if err := store.Set(proj.Hash, proj.Name, graph); err != nil {
+		logFn("[warn] cache write error: %v", err)
+		return nil
+	}
+
+	logFn("[debug] local pregen complete: graph cached for %s", proj.Name)
 	return nil
 }
