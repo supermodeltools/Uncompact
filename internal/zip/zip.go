@@ -126,10 +126,11 @@ func RepoZip(root string) ([]byte, bool, error) {
 			return nil
 		}
 
-		// Check total size budget
+		// Check total size budget; skip this file but keep walking so that
+		// smaller files later in the tree can still be included.
 		if totalSize+info.Size() > maxTotalSize {
 			truncated = true
-			return io.EOF // signal we're done
+			return nil
 		}
 
 		f, err := os.Open(path)
