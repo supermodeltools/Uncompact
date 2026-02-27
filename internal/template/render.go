@@ -24,7 +24,8 @@ const contextBombTmpl = `# Uncompact Context — {{.ProjectName}}
 **Codebase:** {{.Graph.Stats.TotalFiles}} files · {{.Graph.Stats.TotalFunctions}} functions
 {{- if .Graph.Stats.Languages}}
 
-**Languages:** {{languageList .Graph.Stats.Languages}}{{end}}
+**Languages:** {{languageList .Graph.Stats.Languages}}{{end}}{{if .Graph.ExternalDeps}}
+**Tech stack:** {{join .Graph.ExternalDeps ", "}}{{end}}
 
 ## Domain Map
 {{range .Graph.Domains}}

@@ -35,6 +35,16 @@ type SupermodelIR struct {
 	Summary  map[string]any `json:"summary"`
 	Metadata irMetadata     `json:"metadata"`
 	Domains  []irDomain     `json:"domains"`
+	Graph    irGraph        `json:"graph"`
+}
+
+type irGraph struct {
+	Nodes []irNode `json:"nodes"`
+}
+
+type irNode struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
 }
 
 type irMetadata struct {
@@ -93,10 +103,18 @@ func (ir *SupermodelIR) toProjectGraph(projectName string) *ProjectGraph {
 		})
 	}
 
+	var externalDeps []string
+	for _, node := range ir.Graph.Nodes {
+		if node.Type == "ExternalDependency" && node.Name != "" {
+			externalDeps = append(externalDeps, node.Name)
+		}
+	}
+
 	return &ProjectGraph{
-		Name:     projectName,
-		Language: lang,
-		Domains:  domains,
+		Name:         projectName,
+		Language:     lang,
+		Domains:      domains,
+		ExternalDeps: externalDeps,
 		Stats: Stats{
 			TotalFiles:     summaryInt("filesProcessed"),
 			TotalFunctions: summaryInt("functions"),
@@ -108,13 +126,14 @@ func (ir *SupermodelIR) toProjectGraph(projectName string) *ProjectGraph {
 
 // ProjectGraph is the internal model used by the cache and template.
 type ProjectGraph struct {
-	Name        string    `json:"name"`
-	Language    string    `json:"language"`
-	Framework   string    `json:"framework,omitempty"`
-	Description string    `json:"description,omitempty"`
-	Domains     []Domain  `json:"domains"`
-	Stats       Stats     `json:"stats"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	Name         string    `json:"name"`
+	Language     string    `json:"language"`
+	Framework    string    `json:"framework,omitempty"`
+	Description  string    `json:"description,omitempty"`
+	Domains      []Domain  `json:"domains"`
+	ExternalDeps []string  `json:"external_deps,omitempty"`
+	Stats        Stats     `json:"stats"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // Domain represents a semantic domain within the project.
