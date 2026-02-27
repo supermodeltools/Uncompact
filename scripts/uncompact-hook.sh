@@ -34,17 +34,16 @@ fi
 # Run uncompact and capture output.
 OUTPUT="$("$UNCOMPACT" run --fallback)"
 
+DISPLAY_CACHE="${TMPDIR:-/tmp}/uncompact-display-${UID:-$(id -u)}.txt"
+
 if [ -n "$OUTPUT" ]; then
-  # Emit to stdout — injected into Claude Code's context (AI-visible).
-  echo "$OUTPUT"
-
-  # Cache output for user-visible display on the next UserPromptSubmit.
-  # uncompact show-cache picks this up and replays it into the context.
-  DISPLAY_CACHE="${TMPDIR:-/tmp}/uncompact-display-${UID:-$(id -u)}.txt"
-  echo "$OUTPUT" > "$DISPLAY_CACHE"
-
-  # Print a status line to stderr — visible in the terminal during compact.
   CHAR_COUNT="${#OUTPUT}"
   APPROX_TOKENS=$(( CHAR_COUNT / 4 ))
-  echo "[uncompact] Context injected (~${APPROX_TOKENS} tokens)" >&2
+
+  # Emit context + status line to stdout — injected into Claude Code's context.
+  # No cache write: SessionStart:compact handles the injection directly.
+  printf '%s\n\n[uncompact] Context restored (~%d tokens)\n' "$OUTPUT" "$APPROX_TOKENS"
 fi
+
+# Clean up any stale display cache so UserPromptSubmit doesn't double-inject.
+rm -f "$DISPLAY_CACHE"
