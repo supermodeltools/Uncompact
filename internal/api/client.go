@@ -288,6 +288,17 @@ func buildMultipartBody(projectName string, repoZip []byte) (bodyBytes []byte, c
 // when the job status is "completed"; the payload may be nil if the server returned none.
 // notFound, if non-nil, is called when the server returns 404 or 405; returning nil from
 // notFound stops polling with no error (caller interprets the absence as "unavailable").
+//
+// To save upload bandwidth the function uses a two-phase approach:
+//  1. Submit phase (attempt 0): POST the full multipart body once to create the job and
+//     capture the returned jobId.
+//  2. Poll phase (subsequent attempts): GET /v1/jobs/{jobId} — a zero-body request that
+//     avoids re-uploading the repo zip on every poll cycle.
+//
+// If the server responds to the GET with 404 or 405 (status endpoint not available),
+// useJobStatusEndpoint is set to false and that probe is not counted against the poll
+// budget; subsequent attempts fall back to re-posting the full body with the original
+// idempotency key, preserving the existing server-side deduplication behaviour.
 func (c *Client) pollJob(
 	ctx context.Context,
 	endpoint string,
@@ -299,6 +310,9 @@ func (c *Client) pollJob(
 ) error {
 	deadline := time.Now().Add(maxPollDuration)
 
+	var jobID string           // captured on the first successful response
+	useJobStatusEndpoint := true // try GET /v1/jobs/{jobId} after the initial submit
+
 	for attempt := 0; attempt < maxPollAttempts; attempt++ {
 		if time.Now().After(deadline) {
 			return fmt.Errorf("job timed out after %v", maxPollDuration)
@@ -309,16 +323,36 @@ func (c *Client) pollJob(
 		default:
 		}
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-			c.baseURL+endpoint, bytes.NewReader(bodyBytes))
-		if err != nil {
-			return err
+		var (
+			req                    *http.Request
+			err                    error
+			viaJobStatusEndpoint   bool
+		)
+
+		if jobID != "" && useJobStatusEndpoint {
+			// Lightweight poll: fetch job status without re-uploading the zip.
+			viaJobStatusEndpoint = true
+			req, err = http.NewRequestWithContext(ctx, http.MethodGet,
+				c.baseURL+"/v1/jobs/"+jobID, nil)
+			if err != nil {
+				return err
+			}
+			req.Header.Set("X-Api-Key", c.apiKey)
+			req.Header.Set("Accept", "application/json")
+			req.Header.Set("User-Agent", "uncompact/1.0")
+		} else {
+			// Full submit: POST with the complete multipart body.
+			req, err = http.NewRequestWithContext(ctx, http.MethodPost,
+				c.baseURL+endpoint, bytes.NewReader(bodyBytes))
+			if err != nil {
+				return err
+			}
+			req.Header.Set("Content-Type", contentType)
+			req.Header.Set("X-Api-Key", c.apiKey)
+			req.Header.Set("Accept", "application/json")
+			req.Header.Set("User-Agent", "uncompact/1.0")
+			req.Header.Set("Idempotency-Key", idempotencyKey)
 		}
-		req.Header.Set("Content-Type", contentType)
-		req.Header.Set("X-Api-Key", c.apiKey)
-		req.Header.Set("Accept", "application/json")
-		req.Header.Set("User-Agent", "uncompact/1.0")
-		req.Header.Set("Idempotency-Key", idempotencyKey)
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
@@ -343,6 +377,15 @@ func (c *Client) pollJob(
 		}
 
 		c.logFn("[debug] poll attempt %d (%s): HTTP %d", attempt+1, endpoint, resp.StatusCode)
+
+		// If the lightweight GET probe hit an unavailable endpoint, disable it and
+		// retry this slot with the full POST body (don't burn a poll attempt).
+		if viaJobStatusEndpoint && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed) {
+			c.logFn("[debug] job status endpoint unavailable; falling back to full POST for polling")
+			useJobStatusEndpoint = false
+			attempt-- // don't count this probe against the poll budget
+			continue
+		}
 
 		isOK := false
 		switch resp.StatusCode {
@@ -380,6 +423,13 @@ func (c *Client) pollJob(
 			return fmt.Errorf("parsing response: %w", err)
 		}
 
+		// Capture the job ID on the first successful response so subsequent poll
+		// attempts can use the lightweight GET /v1/jobs/{jobId} endpoint.
+		if jobResp.JobID != "" && jobID == "" {
+			jobID = jobResp.JobID
+			c.logFn("[debug] captured job ID %s; subsequent polls will use GET /v1/jobs/%s", jobID, jobID)
+		}
+
 		c.logFn("[debug] job %s status: %s", jobResp.JobID, jobResp.Status)
 
 		switch jobResp.Status {
@@ -412,8 +462,6 @@ func (c *Client) pollJob(
 }
 
 // GetGraph submits the repo zip and retrieves the project graph, handling async polling.
-// Polling is done by re-submitting the same POST with the same idempotency key; the
-// server returns cached job status on subsequent calls with the same key.
 func (c *Client) GetGraph(ctx context.Context, projectName string, repoZip []byte) (*ProjectGraph, error) {
 	c.logFn("[debug] submitting repo to Supermodel API (%d bytes)", len(repoZip))
 
