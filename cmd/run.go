@@ -148,7 +148,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 			// else: fall through to use stale cache
 		} else {
 			if truncated {
-				logFn("[warn] repo zip truncated at 10 MB limit — large repos may produce incomplete graph analysis")
+				fmt.Fprintf(os.Stderr, "[warn] repo zip truncated at 10 MB limit — large repos may produce incomplete graph analysis\n")
 			}
 			apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
 			freshGraph, err := fetchGraphWithCircularDeps(ctx, apiClient, proj.Name, zipData, logFn)
@@ -228,7 +228,7 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 		return silentExit()
 	}
 	if truncated {
-		logFn("[warn] repo zip truncated at 10 MB limit — large repos may produce incomplete graph analysis")
+		fmt.Fprintf(os.Stderr, "[warn] repo zip truncated at 10 MB limit — large repos may produce incomplete graph analysis\n")
 	}
 
 	apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
