@@ -14,6 +14,9 @@ import (
 const contextBombTmpl = `# Uncompact Context — {{.ProjectName}}
 
 > Injected by Uncompact at {{.Timestamp}}{{if .Stale}} | ⚠️ STALE: last updated {{.StaleDuration}}{{end}}
+{{- if .Graph.Stats.CircularDependencyCycles}}
+> ⚠️ {{.Graph.Stats.CircularDependencyCycles}} circular dependency {{if eq .Graph.Stats.CircularDependencyCycles 1}}cycle{{else}}cycles{{end}} detected
+{{- end}}
 
 ## Project Overview
 
@@ -103,7 +106,7 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 	}
 
 	// If over budget, truncate domains to fit
-	return truncateToTokenBudget(graph, projectName, opts.MaxTokens)
+	return truncateToTokenBudget(graph, projectName, opts.MaxTokens, graph.Stats.CircularDependencyCycles)
 }
 
 // truncateToTokenBudget progressively drops lower-priority content to fit the token budget.
@@ -111,14 +114,24 @@ func truncateToTokenBudget(
 	graph *api.ProjectGraph,
 	projectName string,
 	maxTokens int,
+	circularCycles int,
 ) (string, int, error) {
 
 	// Build a minimal required header
-	required := fmt.Sprintf(`# Uncompact Context — %s
-
-**Language:** %s · **Files:** %d · **Functions:** %d`,
-		projectName, graph.Language, graph.Stats.TotalFiles, graph.Stats.TotalFunctions,
-	)
+	var hdr strings.Builder
+	hdr.WriteString(fmt.Sprintf("# Uncompact Context — %s\n\n", projectName))
+	if circularCycles > 0 {
+		label := "cycles"
+		if circularCycles == 1 {
+			label = "cycle"
+		}
+		hdr.WriteString(fmt.Sprintf("> ⚠️ %d circular dependency %s detected\n\n", circularCycles, label))
+	}
+	hdr.WriteString(fmt.Sprintf(
+		"**Language:** %s · **Files:** %d · **Functions:** %d",
+		graph.Language, graph.Stats.TotalFiles, graph.Stats.TotalFunctions,
+	))
+	required := hdr.String()
 
 	reqTokens := countTokens(required)
 	if reqTokens > maxTokens {
