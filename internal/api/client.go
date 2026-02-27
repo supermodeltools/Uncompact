@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -72,6 +73,34 @@ type irSubdomain struct {
 	DescriptionSummary string `json:"descriptionSummary"`
 }
 
+// computeCriticalFiles derives the most-connected files by counting how many domains
+// reference each file as a key file. The top n files are returned, ranked descending.
+func computeCriticalFiles(domains []Domain, n int) []CriticalFile {
+	counts := make(map[string]int)
+	for _, d := range domains {
+		for _, f := range d.KeyFiles {
+			counts[f]++
+		}
+	}
+
+	files := make([]CriticalFile, 0, len(counts))
+	for path, count := range counts {
+		files = append(files, CriticalFile{Path: path, RelationshipCount: count})
+	}
+
+	sort.Slice(files, func(i, j int) bool {
+		if files[i].RelationshipCount != files[j].RelationshipCount {
+			return files[i].RelationshipCount > files[j].RelationshipCount
+		}
+		return files[i].Path < files[j].Path
+	})
+
+	if len(files) > n {
+		files = files[:n]
+	}
+	return files
+}
+
 // toProjectGraph converts a SupermodelIR API response into the internal ProjectGraph model.
 func (ir *SupermodelIR) toProjectGraph(projectName string) *ProjectGraph {
 	lang := ""
@@ -129,7 +158,7 @@ func (ir *SupermodelIR) toProjectGraph(projectName string) *ProjectGraph {
 		}
 	}
 
-	return &ProjectGraph{
+	graph := &ProjectGraph{
 		Name:         projectName,
 		Language:     lang,
 		Domains:      domains,
@@ -141,18 +170,27 @@ func (ir *SupermodelIR) toProjectGraph(projectName string) *ProjectGraph {
 		},
 		UpdatedAt: time.Now(),
 	}
+	graph.CriticalFiles = computeCriticalFiles(graph.Domains, 10)
+	return graph
+}
+
+// CriticalFile represents a highly-connected file derived from domain key file references.
+type CriticalFile struct {
+	Path              string `json:"path"`
+	RelationshipCount int    `json:"relationship_count"`
 }
 
 // ProjectGraph is the internal model used by the cache and template.
 type ProjectGraph struct {
-	Name         string    `json:"name"`
-	Language     string    `json:"language"`
-	Framework    string    `json:"framework,omitempty"`
-	Description  string    `json:"description,omitempty"`
-	Domains      []Domain  `json:"domains"`
-	ExternalDeps []string  `json:"external_deps,omitempty"`
-	Stats        Stats     `json:"stats"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	Name          string         `json:"name"`
+	Language      string         `json:"language"`
+	Framework     string         `json:"framework,omitempty"`
+	Description   string         `json:"description,omitempty"`
+	Domains       []Domain       `json:"domains"`
+	ExternalDeps  []string       `json:"external_deps,omitempty"`
+	CriticalFiles []CriticalFile `json:"critical_files,omitempty"`
+	Stats         Stats          `json:"stats"`
+	UpdatedAt     time.Time      `json:"updated_at"`
 }
 
 // Subdomain represents a named sub-area within a domain.

@@ -26,7 +26,10 @@ const contextBombTmpl = `# Uncompact Context — {{.ProjectName}}
 
 **Languages:** {{languageList .Graph.Stats.Languages}}{{end}}{{if .Graph.ExternalDeps}}
 **Tech stack:** {{join .Graph.ExternalDeps ", "}}{{end}}
-
+{{if .Graph.CriticalFiles}}
+## Critical Files
+{{range $i, $f := .Graph.CriticalFiles}}{{add1 $i}}. {{$f.Path}} — {{$f.RelationshipCount}} relationships
+{{end}}{{end}}
 ## Domain Map
 {{range .Graph.Domains}}
 ### {{.Name}}
@@ -78,6 +81,7 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 		"languageList": func(langs []string) string {
 			return strings.Join(langs, ", ")
 		},
+		"add1": func(i int) int { return i + 1 },
 	}
 
 	tmpl, err := gotmpl.New("context_bomb").Funcs(funcMap).Parse(contextBombTmpl)
@@ -123,6 +127,19 @@ func truncateToTokenBudget(
 	}
 	remaining := maxTokens - reqTokens
 
+	var sb strings.Builder
+	sb.WriteString(required)
+
+	// Include critical files section before domain map — it's high-priority read order context.
+	if len(graph.CriticalFiles) > 0 {
+		criticalSection := buildCriticalFilesSection(graph.CriticalFiles)
+		criticalTokens := countTokens(criticalSection)
+		if criticalTokens <= remaining {
+			sb.WriteString(criticalSection)
+			remaining -= criticalTokens
+		}
+	}
+
 	var domainSections []string
 	for _, d := range graph.Domains {
 		section := buildDomainSection(d)
@@ -136,8 +153,6 @@ func truncateToTokenBudget(
 		}
 	}
 
-	var sb strings.Builder
-	sb.WriteString(required)
 	if len(domainSections) > 0 {
 		sb.WriteString("\n\n## Domain Map\n")
 		for _, s := range domainSections {
@@ -148,6 +163,15 @@ func truncateToTokenBudget(
 
 	result := sb.String()
 	return result, countTokens(result), nil
+}
+
+func buildCriticalFilesSection(files []api.CriticalFile) string {
+	var sb strings.Builder
+	sb.WriteString("\n\n## Critical Files\n")
+	for i, f := range files {
+		sb.WriteString(fmt.Sprintf("%d. %s — %d relationships\n", i+1, f.Path, f.RelationshipCount))
+	}
+	return sb.String()
 }
 
 func buildDomainSection(d api.Domain) string {
