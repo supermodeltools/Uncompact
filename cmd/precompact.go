@@ -104,6 +104,9 @@ func buildSnapshotContent(transcriptPath string, logFn func(string, ...interface
 
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
 	for _, line := range lines {
+		if len(filesInFocus) >= 10 {
+			break
+		}
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
