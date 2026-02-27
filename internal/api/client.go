@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -394,13 +395,35 @@ func (c *Client) pollJob(
 		case http.StatusPaymentRequired:
 			return fmt.Errorf("subscription required: visit %s to subscribe", config.DashboardURL)
 		case http.StatusTooManyRequests:
-			return fmt.Errorf("rate limit exceeded: please wait before retrying")
+			retryAfter := 30 * time.Second
+			if ra := resp.Header.Get("Retry-After"); ra != "" {
+				if secs, err := strconv.Atoi(ra); err == nil && secs > 0 {
+					retryAfter = time.Duration(secs) * time.Second
+				}
+			}
+			c.logFn("[warn] poll attempt %d (%s): rate limited; retrying in %v", attempt+1, endpoint, retryAfter)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(retryAfter):
+			}
+			continue
 		case http.StatusNotFound, http.StatusMethodNotAllowed:
 			if notFound != nil {
 				return notFound()
 			}
 		case http.StatusOK, http.StatusAccepted:
 			isOK = true
+		default:
+			if resp.StatusCode >= 500 {
+				c.logFn("[warn] poll attempt %d (%s): server error %d (will retry)", attempt+1, endpoint, resp.StatusCode)
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(10 * time.Second):
+				}
+				continue
+			}
 		}
 		if !isOK {
 			var errResp struct {
