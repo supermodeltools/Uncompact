@@ -39,4 +39,4 @@ jobs:
           additional_permissions: |
             actions: read
 
-          allowed_tools: 'Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh issue:*),Bash(gh api:*),Bash(git *),Bash(go build:*),Bash(go vet:*),Bash(go mod tidy:*),Edit,Write,Read,Glob,Grep'
+          claude_args: '--allowedTools "Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh issue:*),Bash(gh api:*),Bash(git fetch:*),Bash(git checkout:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git rebase:*),Bash(git log:*),Bash(git diff:*),Bash(git status:*),Bash(go build:*),Bash(go vet:*),Bash(go mod tidy:*),Edit,Write,Read,Glob,Grep"'

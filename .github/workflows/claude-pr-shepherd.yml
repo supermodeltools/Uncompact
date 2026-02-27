@@ -29,7 +29,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          allowed_tools: 'Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh pr review:*),Bash(gh pr merge:*),Bash(gh pr checks:*),Bash(gh api:*),Bash(git *),Bash(go build:*),Bash(go vet:*),Bash(go mod tidy:*),Edit,Write,Read,Glob,Grep'
+          claude_args: '--allowedTools "Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh pr review:*),Bash(gh pr merge:*),Bash(gh pr checks:*),Bash(gh api:*),Bash(git fetch:*),Bash(git checkout:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git rebase:*),Bash(git log:*),Bash(git diff:*),Bash(git status:*),Bash(go build:*),Bash(go vet:*),Bash(go mod tidy:*),Edit,Write,Read,Glob,Grep"'
           prompt: |
             You are a PR shepherd. Your job is to get open pull requests reviewed, fixed, and merged.
 
@@ -66,7 +66,7 @@ jobs:
             - PR is not a draft
             - `mergeable` is not `CONFLICTING`
 
-            Then merge: gh pr merge {number} --repo ${{ github.repository }} --squash --auto
+            Then merge: gh pr merge {number} --repo ${{ github.repository }} --rebase
 
             If there are merge conflicts, resolve them by checking out the branch, rebasing onto the base branch, fixing conflicts, and force-pushing.
 
