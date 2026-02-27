@@ -134,6 +134,9 @@ func buildSnapshotContent(transcriptPath string, logFn func(string, ...interface
 				}
 			}
 		}
+		if len(filesInFocus) >= 10 {
+			break
+		}
 	}
 
 	// Keep the 5 most recent user messages for context
