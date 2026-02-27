@@ -58,17 +58,20 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	}
 	logFn("[debug] project: %s (hash: %s)", proj.Name, proj.Hash)
 
+	// Gather working memory from git and GitHub (failures are silent)
+	wm := project.GetWorkingMemory(proj.RootDir)
+
 	// Open cache
 	dbPath, err := config.DBPath()
 	if err != nil {
 		logFn("[warn] cannot open cache: %v", err)
-		return runWithoutCache(cfg, proj, logFn)
+		return runWithoutCache(cfg, proj, wm, logFn)
 	}
 
 	store, err := cache.Open(dbPath)
 	if err != nil {
 		logFn("[warn] cache open error: %v", err)
-		return runWithoutCache(cfg, proj, logFn)
+		return runWithoutCache(cfg, proj, wm, logFn)
 	}
 	defer store.Close()
 
@@ -156,9 +159,10 @@ func runHandler(cmd *cobra.Command, args []string) error {
 
 	// Render context bomb
 	opts := tmpl.RenderOptions{
-		MaxTokens: maxTokens,
-		Stale:     stale,
-		StaleAt:   staleAt,
+		MaxTokens:     maxTokens,
+		Stale:         stale,
+		StaleAt:       staleAt,
+		WorkingMemory: wm,
 	}
 	output, tokens, err := tmpl.Render(graph, proj.Name, opts)
 	if err != nil {
@@ -181,7 +185,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 }
 
 // runWithoutCache attempts an API fetch with no cache fallback.
-func runWithoutCache(cfg *config.Config, proj *project.Info, logFn func(string, ...interface{})) error {
+func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.WorkingMemory, logFn func(string, ...interface{})) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
@@ -204,7 +208,7 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, logFn func(string, 
 		return silentExit()
 	}
 
-	opts := tmpl.RenderOptions{MaxTokens: maxTokens}
+	opts := tmpl.RenderOptions{MaxTokens: maxTokens, WorkingMemory: wm}
 	output, _, err := tmpl.Render(graph, proj.Name, opts)
 	if err != nil {
 		logFn("[warn] render error: %v", err)
