@@ -130,9 +130,14 @@ func collectFiles(ctx context.Context, rootDir string) (extCounts map[string]int
 
 		if d.IsDir() {
 			name := d.Name()
-			if ignoreDirs[name] {
+			if ignoreDirs[name] || strings.HasPrefix(name, ".") {
 				return filepath.SkipDir
 			}
+			return nil
+		}
+
+		// Skip hidden files (e.g. .env, .npmrc, .netrc).
+		if strings.HasPrefix(d.Name(), ".") {
 			return nil
 		}
 
