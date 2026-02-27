@@ -134,7 +134,7 @@ func Install(settingsPath string, dryRun bool) (*InstallResult, error) {
 	existingHooks := make(map[string][]Hook)
 	if hooksRaw, ok := rawJSON["hooks"]; ok {
 		if err := json.Unmarshal(hooksRaw, &existingHooks); err != nil {
-			existingHooks = make(map[string][]Hook)
+			return nil, fmt.Errorf("existing hooks section is not valid JSON: %w", err)
 		}
 	}
 
