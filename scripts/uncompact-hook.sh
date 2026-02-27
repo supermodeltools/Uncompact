@@ -29,13 +29,9 @@ if [ -z "$UNCOMPACT" ]; then
 fi
 
 # Build argument list.
-ARGS=("run")
-
-# In remote/CI environments (CLAUDE_CODE_REMOTE=true), enable --fallback so a
-# minimal context is emitted even if the Supermodel API is unreachable.
-if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
-  ARGS+=("--fallback")
-fi
+# Always enable --fallback so something is emitted even if the cache isn't warm
+# yet (e.g. first run after install before pregen completes) or the API is slow.
+ARGS=("run" "--fallback")
 
 # SUPERMODEL_API_KEY is read directly from the environment by the uncompact binary.
 # Do not pass it as a CLI argument to avoid exposing it in process listings (ps aux).
