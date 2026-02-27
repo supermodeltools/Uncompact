@@ -19,6 +19,7 @@ const (
 	defaultTimeout  = 30 * time.Second
 	maxPollDuration = 900 * time.Second
 	maxPollAttempts = 90
+	maxResponseSize = 32 * 1024 * 1024 // 32 MB
 )
 
 // Client is the Supermodel API client.
@@ -316,7 +317,7 @@ func (c *Client) GetGraph(ctx context.Context, projectName string, repoZip []byt
 			}
 			continue
 		}
-		respBody, readErr := io.ReadAll(resp.Body)
+		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
 		resp.Body.Close()
 		if readErr != nil {
 			c.logFn("[warn] poll attempt %d: error reading response (will retry): %v", attempt+1, readErr)
@@ -447,7 +448,7 @@ func (c *Client) GetCircularDependencies(ctx context.Context, projectName string
 			}
 			continue
 		}
-		respBody, readErr := io.ReadAll(resp.Body)
+		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
 		resp.Body.Close()
 		if readErr != nil {
 			c.logFn("[warn] circular dep poll attempt %d: error reading response (will retry): %v", attempt+1, readErr)
