@@ -137,7 +137,27 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 	}
 
 	if opts.PostCompact {
-		note := fmt.Sprintf("\n\n> [uncompact] Context restored after compact (~%d tokens). Please acknowledge at the start of your response with exactly: \"✓ Uncompact: context restored (~%d tokens)\"", resultTokens, resultTokens)
+		buildNote := func(n int) string {
+			return fmt.Sprintf("\n\n> [uncompact] Context restored after compact (~%d tokens). Please acknowledge at the start of your response with exactly: \"✓ Uncompact: context restored (~%d tokens)\"", n, n)
+		}
+		note := buildNote(resultTokens)
+		noteTokens := countTokens(note)
+		if opts.MaxTokens > 0 && resultTokens+noteTokens > opts.MaxTokens {
+			budget := opts.MaxTokens - noteTokens
+			if budget < 1 {
+				budget = 1
+			}
+			if tokens <= budget {
+				result, resultTokens = fullText, tokens
+			} else {
+				truncated, truncatedTokens, truncErr := truncateToTokenBudget(graph, projectName, budget, graph.Stats.CircularDependencyCycles, opts.WorkingMemory)
+				if truncErr != nil {
+					return "", 0, truncErr
+				}
+				result, resultTokens = truncated, truncatedTokens
+			}
+			note = buildNote(resultTokens)
+		}
 		result += note
 		resultTokens = countTokens(result)
 	}
