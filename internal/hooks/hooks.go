@@ -206,7 +206,7 @@ func mergeHooks(existing, toAdd map[string][]Hook) map[string][]Hook {
 				case "Stop":
 					matches = append(matches, "uncompact run", "uncompact-hook.sh")
 				case "UserPromptSubmit":
-					matches = append(matches, "uncompact show-cache", "show-hook.sh")
+					matches = append(matches, "uncompact show-cache")
 				}
 				if commandExistsInHooks(result[event], matches...) {
 					skip = true
