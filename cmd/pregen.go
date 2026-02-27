@@ -61,14 +61,14 @@ func pregenHandler(cmd *cobra.Command, args []string) error {
 	// Open cache
 	dbPath, err := config.DBPath()
 	if err != nil {
-		logFn("[warn] cannot open cache: %v", err)
-		return pregenFetch(cfg, proj, logFn)
+		logFn("[warn] cannot open cache, skipping pregen: %v", err)
+		return nil
 	}
 
 	store, err := cache.Open(dbPath)
 	if err != nil {
-		logFn("[warn] cache open error: %v", err)
-		return pregenFetch(cfg, proj, logFn)
+		logFn("[warn] cache open error, skipping pregen: %v", err)
+		return nil
 	}
 	defer store.Close()
 
@@ -109,27 +109,5 @@ func pregenHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	logFn("[debug] pregen complete: graph cached for %s", proj.Name)
-	return nil
-}
-
-// pregenFetch runs the API fetch without a cache (fallback when DB is unavailable).
-func pregenFetch(cfg *config.Config, proj *project.Info, logFn func(string, ...interface{})) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	defer cancel()
-
-	zipData, truncated, err := zip.RepoZip(proj.RootDir)
-	if err != nil {
-		logFn("[warn] zip error: %v", err)
-		return nil
-	}
-	if truncated {
-		logFn("[warn] repo zip truncated at 10 MB limit — large repos may produce incomplete graph analysis")
-	}
-
-	apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
-	_, err = fetchGraphWithCircularDeps(ctx, apiClient, proj.Name, zipData, logFn)
-	if err != nil {
-		logFn("[warn] API error: %v", err)
-	}
 	return nil
 }
