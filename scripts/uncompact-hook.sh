@@ -39,7 +39,12 @@ if [ -n "$OUTPUT" ]; then
   echo "$OUTPUT"
 
   # Cache output for user-visible display on the next UserPromptSubmit.
-  # show-hook.sh picks this up and replays it into the chat transcript.
+  # uncompact show-cache picks this up and replays it into the context.
   DISPLAY_CACHE="${TMPDIR:-/tmp}/uncompact-display-${UID:-$(id -u)}.txt"
   echo "$OUTPUT" > "$DISPLAY_CACHE"
+
+  # Print a status line to stderr — visible in the terminal during compact.
+  CHAR_COUNT="${#OUTPUT}"
+  APPROX_TOKENS=$(( CHAR_COUNT / 4 ))
+  echo "[uncompact] Context injected (~${APPROX_TOKENS} tokens)" >&2
 fi

@@ -30,9 +30,15 @@ type Command struct {
 var uncompactHooks = map[string][]Hook{
 	"Stop": {
 		{
-			Matcher: "",
 			Hooks: []Command{
 				{Type: "command", Command: "uncompact run"},
+			},
+		},
+	},
+	"UserPromptSubmit": {
+		{
+			Hooks: []Command{
+				{Type: "command", Command: "uncompact show-cache"},
 			},
 		},
 	},
@@ -160,35 +166,48 @@ func Install(settingsPath string, dryRun bool) (*InstallResult, error) {
 	return result, nil
 }
 
-// isAlreadyInstalled checks if uncompact hooks are already present.
-// Recognises both the direct "uncompact run" form and the wrapper-script form
-// used by the plugin (uncompact-hook.sh) so re-running install is idempotent
-// regardless of which installation method was used.
-func isAlreadyInstalled(hooks map[string][]Hook) bool {
-	stopHooks, ok := hooks["Stop"]
-	if !ok {
-		return false
-	}
-	for _, h := range stopHooks {
+// commandExistsInHooks reports whether any command in hookList contains one of
+// the given substrings. Used to detect both direct ("uncompact run") and
+// wrapper-script ("uncompact-hook.sh") forms of the same logical hook.
+func commandExistsInHooks(hookList []Hook, matches ...string) bool {
+	for _, h := range hookList {
 		for _, cmd := range h.Hooks {
-			if strings.Contains(cmd.Command, "uncompact run") ||
-				strings.Contains(cmd.Command, "uncompact-hook.sh") {
-				return true
+			for _, match := range matches {
+				if strings.Contains(cmd.Command, match) {
+					return true
+				}
 			}
 		}
 	}
 	return false
 }
 
-// mergeHooks appends new hooks to existing hooks. Caller should check
-// isAlreadyInstalled() first to avoid duplicates.
+// isAlreadyInstalled checks if ALL uncompact hooks are present.
+func isAlreadyInstalled(hooks map[string][]Hook) bool {
+	return commandExistsInHooks(hooks["Stop"], "uncompact run", "uncompact-hook.sh") &&
+		commandExistsInHooks(hooks["UserPromptSubmit"], "uncompact show-cache")
+}
+
+// mergeHooks adds hooks from toAdd into existing, skipping any whose commands
+// are already present. Safe to call repeatedly — idempotent.
 func mergeHooks(existing, toAdd map[string][]Hook) map[string][]Hook {
 	result := make(map[string][]Hook)
 	for k, v := range existing {
 		result[k] = v
 	}
 	for event, hooks := range toAdd {
-		result[event] = append(result[event], hooks...)
+		for _, hook := range hooks {
+			skip := false
+			for _, cmd := range hook.Hooks {
+				if commandExistsInHooks(result[event], cmd.Command) {
+					skip = true
+					break
+				}
+			}
+			if !skip {
+				result[event] = append(result[event], hook)
+			}
+		}
 	}
 	return result
 }

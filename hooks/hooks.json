@@ -70,7 +70,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/show-hook.sh",
+            "command": "uncompact show-cache",
             "timeout": 5
           }
         ]
