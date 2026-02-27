@@ -38,10 +38,7 @@ OUTPUT="$("$UNCOMPACT" run --fallback --post-compact)"
 DISPLAY_CACHE="${TMPDIR:-/tmp}/uncompact-display-${UID:-$(id -u)}.txt"
 
 if [ -n "$OUTPUT" ]; then
-  CHAR_COUNT="${#OUTPUT}"
-  APPROX_TOKENS=$(( CHAR_COUNT / 4 ))
-
   # Write to display cache — UserPromptSubmit hook will show this as a visible
   # transcript message on the user's next message.
-  printf '%s\n\n[uncompact] Context restored (~%d tokens)\n' "$OUTPUT" "$APPROX_TOKENS" > "$DISPLAY_CACHE"
+  printf '%s\n' "$OUTPUT" > "$DISPLAY_CACHE"
 fi
