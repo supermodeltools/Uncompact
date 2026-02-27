@@ -68,8 +68,11 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	}
 	logFn("[debug] project: %s (hash: %s)", proj.Name, proj.Hash)
 
-	// Gather working memory from git and GitHub (failures are silent)
-	wm := project.GetWorkingMemory(gitCtx, proj.RootDir)
+	// Gather working memory from git and GitHub (failures are silent).
+	// Use a longer timeout for the gh CLI call, which is a network operation.
+	wmCtx, wmCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer wmCancel()
+	wm := project.GetWorkingMemory(wmCtx, proj.RootDir)
 
 	// Open cache
 	dbPath, err := config.DBPath()
