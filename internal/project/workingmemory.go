@@ -18,7 +18,7 @@ type WorkingMemory struct {
 	IssueBody     string   // truncated to ~500 chars
 	BranchCommits []string // git log <default>..HEAD --oneline, max 10
 	ChangedFiles  []string // git diff --stat <default>..HEAD, file lines only
-	Uncommitted   []string // git diff --stat, file lines only
+	Uncommitted   []string // git diff HEAD --stat, file lines only
 }
 
 var issueNumberRe = regexp.MustCompile(`issue-(\d+)`)
@@ -87,8 +87,8 @@ func GetWorkingMemory(ctx context.Context, rootDir string) *WorkingMemory {
 		wm.ChangedFiles = parseStatLines(out)
 	}
 
-	// Uncommitted changes
-	if out, err := runGit(ctx, rootDir, "diff", "--stat"); err == nil {
+	// Uncommitted changes (staged and unstaged)
+	if out, err := runGit(ctx, rootDir, "diff", "HEAD", "--stat"); err == nil {
 		wm.Uncommitted = parseStatLines(out)
 	}
 
