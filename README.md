@@ -1,5 +1,7 @@
 # Uncompact
 
+[![context bomb](https://raw.githubusercontent.com/supermodeltools/Uncompact/main/assets/badge.svg)](https://github.com/supermodeltools/Uncompact)
+
 > Stop Claude Code compaction from making your AI stupid.
 
 Uncompact hooks into Claude Code's lifecycle to reinject a high-density "context bomb" after compaction. It's powered by the [Supermodel Public API](https://supermodeltools.com) and stores versioned project graphs locally in SQLite.
@@ -238,6 +240,20 @@ go build -o uncompact .
 ```
 
 Requires Go 1.22+.
+
+## Add to your project
+
+Show that your project uses Uncompact by adding this badge to your README:
+
+```markdown
+[![context bomb](https://raw.githubusercontent.com/supermodeltools/Uncompact/main/assets/badge.svg)](https://github.com/supermodeltools/Uncompact)
+```
+
+Or with Shields.io:
+
+```markdown
+[![context bomb](https://img.shields.io/badge/context--bomb-Uncompact-5b21b6)](https://github.com/supermodeltools/Uncompact)
+```
 
 ## License
 
