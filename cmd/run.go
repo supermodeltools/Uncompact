@@ -133,7 +133,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	// If no cache or forced refresh, fetch from API
 	if graph == nil || forceRefresh {
 		logFn("[debug] fetching from Supermodel API...")
-		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
 
 		zipData, truncated, err := zip.RepoZip(proj.RootDir)
@@ -216,7 +216,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 
 // runWithoutCache attempts an API fetch with no cache fallback.
 func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.WorkingMemory, postCompact bool, logFn func(string, ...interface{})) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
 	zipData, truncated, err := zip.RepoZip(proj.RootDir)
