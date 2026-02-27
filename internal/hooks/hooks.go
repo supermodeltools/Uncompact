@@ -43,6 +43,11 @@ var uncompactHooks = map[string][]Hook{
 				{Type: "command", Command: `bash -c 'export PATH="$HOME/go/bin:$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; uncompact show-cache'`},
 			},
 		},
+		{
+			Hooks: []Command{
+				{Type: "command", Command: `bash -c 'export PATH="$HOME/go/bin:$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; uncompact pregen &'`},
+			},
+		},
 	},
 }
 
@@ -187,7 +192,8 @@ func commandExistsInHooks(hookList []Hook, matches ...string) bool {
 // isAlreadyInstalled checks if ALL uncompact hooks are present.
 func isAlreadyInstalled(hooks map[string][]Hook) bool {
 	return commandExistsInHooks(hooks["Stop"], "uncompact run", "uncompact-hook.sh") &&
-		commandExistsInHooks(hooks["UserPromptSubmit"], "uncompact show-cache", "show-hook.sh")
+		commandExistsInHooks(hooks["UserPromptSubmit"], "uncompact show-cache", "show-hook.sh") &&
+		commandExistsInHooks(hooks["UserPromptSubmit"], "uncompact pregen")
 }
 
 // mergeHooks adds hooks from toAdd into existing, skipping any whose commands
@@ -206,7 +212,11 @@ func mergeHooks(existing, toAdd map[string][]Hook) map[string][]Hook {
 				case "Stop":
 					matches = append(matches, "uncompact run", "uncompact-hook.sh")
 				case "UserPromptSubmit":
-					matches = append(matches, "uncompact show-cache")
+					if strings.Contains(cmd.Command, "show-cache") {
+						matches = append(matches, "uncompact show-cache", "show-hook.sh")
+					} else if strings.Contains(cmd.Command, "pregen") {
+						matches = append(matches, "uncompact pregen")
+					}
 				}
 				if commandExistsInHooks(result[event], matches...) {
 					skip = true
