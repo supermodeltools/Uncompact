@@ -33,7 +33,7 @@ var uncompactHooks = map[string][]Hook{
 	"Stop": {
 		{
 			Hooks: []Command{
-				{Type: "command", Command: `bash -c 'export PATH="$HOME/go/bin:$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; uncompact run'`},
+				{Type: "command", Command: `bash -c 'export PATH="$HOME/go/bin:$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; uncompact run --post-compact'`},
 			},
 		},
 	},
