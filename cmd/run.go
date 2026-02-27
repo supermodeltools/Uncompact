@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -105,18 +106,22 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	}
 	defer store.Close()
 
-	// Background prune on an isolated DB handle to avoid racing with store.Close().
+	// Prune on an isolated DB handle to avoid racing with store.Close().
+	var pruneWg sync.WaitGroup
+	pruneWg.Add(1)
 	go func(path string) {
+		defer pruneWg.Done()
 		pruneStore, err := cache.Open(path)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "[warn] cache prune: failed to open store: %v\n", err)
+			logFn("[warn] cache prune: failed to open store: %v", err)
 			return
 		}
 		defer pruneStore.Close()
 		if err := pruneStore.Prune(); err != nil {
-			fmt.Fprintf(os.Stderr, "[warn] cache prune: %v\n", err)
+			logFn("[warn] cache prune: %v", err)
 		}
 	}(dbPath)
+	defer pruneWg.Wait()
 
 	// Check cache
 	var graph *api.ProjectGraph
