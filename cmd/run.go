@@ -13,6 +13,7 @@ import (
 	"github.com/supermodeltools/uncompact/internal/cache"
 	"github.com/supermodeltools/uncompact/internal/config"
 	"github.com/supermodeltools/uncompact/internal/project"
+	"github.com/supermodeltools/uncompact/internal/snapshot"
 	tmpl "github.com/supermodeltools/uncompact/internal/template"
 	"github.com/supermodeltools/uncompact/internal/zip"
 )
@@ -75,17 +76,23 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	defer wmCancel()
 	wm := project.GetWorkingMemory(wmCtx, proj.RootDir)
 
+	// Load session snapshot written by the PreCompact hook (if present and fresh).
+	snap, snapErr := snapshot.Read(proj.RootDir)
+	if snapErr != nil {
+		logFn("[warn] snapshot read error: %v", snapErr)
+	}
+
 	// Open cache
 	dbPath, err := config.DBPath()
 	if err != nil {
 		logFn("[warn] cannot open cache: %v", err)
-		return runWithoutCache(cfg, proj, wm, postCompact, logFn)
+		return runWithoutCache(cfg, proj, wm, snap, postCompact, logFn)
 	}
 
 	store, err := cache.Open(dbPath)
 	if err != nil {
 		logFn("[warn] cache open error: %v", err)
-		return runWithoutCache(cfg, proj, wm, postCompact, logFn)
+		return runWithoutCache(cfg, proj, wm, snap, postCompact, logFn)
 	}
 	defer store.Close()
 
@@ -186,16 +193,24 @@ func runHandler(cmd *cobra.Command, args []string) error {
 
 	// Render context bomb
 	opts := tmpl.RenderOptions{
-		MaxTokens:     maxTokens,
-		Stale:         stale,
-		StaleAt:       staleAt,
-		WorkingMemory: wm,
-		PostCompact:   postCompact,
+		MaxTokens:       maxTokens,
+		Stale:           stale,
+		StaleAt:         staleAt,
+		WorkingMemory:   wm,
+		PostCompact:     postCompact,
+		SessionSnapshot: snap,
 	}
 	output, tokens, err := tmpl.Render(graph, proj.Name, opts)
 	if err != nil {
 		logFn("[warn] render error: %v", err)
 		return silentExit()
+	}
+
+	// Clear the session snapshot after it has been injected into the context bomb.
+	if snap != nil {
+		if clearErr := snapshot.Clear(proj.RootDir); clearErr != nil {
+			logFn("[warn] snapshot clear error: %v", clearErr)
+		}
 	}
 
 	// Emit context bomb to stdout
@@ -226,7 +241,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 }
 
 // runWithoutCache attempts an API fetch with no cache fallback.
-func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.WorkingMemory, postCompact bool, logFn func(string, ...interface{})) error {
+func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.WorkingMemory, snap *snapshot.SessionSnapshot, postCompact bool, logFn func(string, ...interface{})) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
@@ -250,7 +265,7 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 		return silentExit()
 	}
 
-	opts := tmpl.RenderOptions{MaxTokens: maxTokens, WorkingMemory: wm, PostCompact: postCompact}
+	opts := tmpl.RenderOptions{MaxTokens: maxTokens, WorkingMemory: wm, PostCompact: postCompact, SessionSnapshot: snap}
 	output, _, err := tmpl.Render(graph, proj.Name, opts)
 	if err != nil {
 		logFn("[warn] render error: %v", err)
@@ -258,6 +273,11 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 			printFallback(proj.Name)
 		}
 		return silentExit()
+	}
+
+	// Clear the session snapshot after it has been injected into the context bomb.
+	if snap != nil {
+		_ = snapshot.Clear(proj.RootDir)
 	}
 
 	fmt.Print(output)

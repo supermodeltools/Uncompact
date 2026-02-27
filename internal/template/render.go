@@ -10,9 +10,13 @@ import (
 
 	"github.com/supermodeltools/uncompact/internal/api"
 	"github.com/supermodeltools/uncompact/internal/project"
+	"github.com/supermodeltools/uncompact/internal/snapshot"
 )
 
 const contextBombTmpl = `# Uncompact Context — {{.ProjectName}}
+{{- if .SessionSnapshot}}
+{{.SessionSnapshot.Content}}
+{{- end}}
 
 > Injected by Uncompact at {{.Timestamp}}{{if .Stale}} | ⚠️ STALE: last updated {{.StaleDuration}}{{end}}
 {{- if .Graph.Stats.CircularDependencyCycles}}
@@ -67,11 +71,12 @@ const contextBombTmpl = `# Uncompact Context — {{.ProjectName}}
 
 // RenderOptions controls the context bomb output.
 type RenderOptions struct {
-	MaxTokens     int
-	Stale         bool
-	StaleAt       *time.Time // time the data was originally fetched (for "last updated X ago" banner)
-	WorkingMemory *project.WorkingMemory
-	PostCompact   bool // append acknowledgment instruction for post-compact injection
+	MaxTokens       int
+	Stale           bool
+	StaleAt         *time.Time // time the data was originally fetched (for "last updated X ago" banner)
+	WorkingMemory   *project.WorkingMemory
+	PostCompact     bool // append acknowledgment instruction for post-compact injection
+	SessionSnapshot *snapshot.SessionSnapshot
 }
 
 // Render produces the context bomb Markdown, respecting the token budget.
@@ -83,18 +88,20 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 	now := time.Now().UTC()
 
 	data := struct {
-		ProjectName   string
-		Timestamp     string
-		Graph         *api.ProjectGraph
-		Stale         bool
-		StaleDuration string
-		WorkingMemory *project.WorkingMemory
+		ProjectName     string
+		Timestamp       string
+		Graph           *api.ProjectGraph
+		Stale           bool
+		StaleDuration   string
+		WorkingMemory   *project.WorkingMemory
+		SessionSnapshot *snapshot.SessionSnapshot
 	}{
-		ProjectName:   projectName,
-		Timestamp:     now.Format("2006-01-02 15:04:05 UTC"),
-		Graph:         graph,
-		Stale:         opts.Stale,
-		WorkingMemory: opts.WorkingMemory,
+		ProjectName:     projectName,
+		Timestamp:       now.Format("2006-01-02 15:04:05 UTC"),
+		Graph:           graph,
+		Stale:           opts.Stale,
+		WorkingMemory:   opts.WorkingMemory,
+		SessionSnapshot: opts.SessionSnapshot,
 	}
 
 	if opts.Stale && opts.StaleAt != nil {
@@ -131,7 +138,7 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 	} else {
 		// If over budget, truncate domains to fit
 		var err error
-		result, resultTokens, err = truncateToTokenBudget(graph, projectName, opts.MaxTokens, graph.Stats.CircularDependencyCycles, opts.WorkingMemory)
+		result, resultTokens, err = truncateToTokenBudget(graph, projectName, opts.MaxTokens, graph.Stats.CircularDependencyCycles, opts.WorkingMemory, opts.SessionSnapshot)
 		if err != nil {
 			return "", 0, err
 		}
@@ -151,7 +158,7 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 			if tokens <= budget {
 				result, resultTokens = fullText, tokens
 			} else {
-				truncated, truncatedTokens, truncErr := truncateToTokenBudget(graph, projectName, budget, graph.Stats.CircularDependencyCycles, opts.WorkingMemory)
+				truncated, truncatedTokens, truncErr := truncateToTokenBudget(graph, projectName, budget, graph.Stats.CircularDependencyCycles, opts.WorkingMemory, opts.SessionSnapshot)
 				if truncErr != nil {
 					return "", 0, truncErr
 				}
@@ -173,6 +180,7 @@ func truncateToTokenBudget(
 	maxTokens int,
 	circularCycles int,
 	wm *project.WorkingMemory,
+	snap *snapshot.SessionSnapshot,
 ) (string, int, error) {
 
 	// Build a minimal required header
@@ -204,6 +212,16 @@ func truncateToTokenBudget(
 
 	var sb strings.Builder
 	sb.WriteString(required)
+
+	// Session snapshot — high-priority: include before project structure if present
+	if snap != nil && snap.Content != "" {
+		section := "\n\n" + snap.Content
+		sectionTokens := CountTokens(section)
+		if sectionTokens <= remaining {
+			sb.WriteString(section)
+			remaining -= sectionTokens
+		}
+	}
 
 	// Include critical files section before domain map — it's high-priority read order context.
 	if len(graph.CriticalFiles) > 0 {
