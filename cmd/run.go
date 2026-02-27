@@ -68,13 +68,13 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	dbPath, err := config.DBPath()
 	if err != nil {
 		logFn("[warn] cannot open cache: %v", err)
-		return runWithoutCache(cfg, proj, wm, logFn)
+		return runWithoutCache(cfg, proj, wm, postCompact, logFn)
 	}
 
 	store, err := cache.Open(dbPath)
 	if err != nil {
 		logFn("[warn] cache open error: %v", err)
-		return runWithoutCache(cfg, proj, wm, logFn)
+		return runWithoutCache(cfg, proj, wm, postCompact, logFn)
 	}
 	defer store.Close()
 
@@ -192,7 +192,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 }
 
 // runWithoutCache attempts an API fetch with no cache fallback.
-func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.WorkingMemory, logFn func(string, ...interface{})) error {
+func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.WorkingMemory, postCompact bool, logFn func(string, ...interface{})) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
@@ -218,7 +218,7 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 		return silentExit()
 	}
 
-	opts := tmpl.RenderOptions{MaxTokens: maxTokens, WorkingMemory: wm}
+	opts := tmpl.RenderOptions{MaxTokens: maxTokens, WorkingMemory: wm, PostCompact: postCompact}
 	output, _, err := tmpl.Render(graph, proj.Name, opts)
 	if err != nil {
 		logFn("[warn] render error: %v", err)
