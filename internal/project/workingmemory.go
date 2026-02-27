@@ -1,6 +1,7 @@
 package project
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -25,8 +26,8 @@ var issueNumberRe = regexp.MustCompile(`issue-(\d+)`)
 // defaultBranch detects the repo's default branch name.
 // It first tries git symbolic-ref to read the remote HEAD, then falls back
 // to probing "main" and "master" in that order.
-func defaultBranch(rootDir string) string {
-	out, err := runGit(rootDir, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
+func defaultBranch(ctx context.Context, rootDir string) string {
+	out, err := runGit(ctx, rootDir, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
 	if err == nil {
 		name := strings.TrimSpace(out)
 		// Strip "origin/" prefix
@@ -39,7 +40,7 @@ func defaultBranch(rootDir string) string {
 	}
 	// Fallback: probe for main then master
 	for _, candidate := range []string{"main", "master"} {
-		if _, err := runGit(rootDir, "rev-parse", "--verify", candidate); err == nil {
+		if _, err := runGit(ctx, rootDir, "rev-parse", "--verify", candidate); err == nil {
 			return candidate
 		}
 	}
@@ -48,18 +49,18 @@ func defaultBranch(rootDir string) string {
 
 // GetWorkingMemory derives situational context from git and GitHub.
 // Returns nil if the branch has no commits ahead of the default branch or on error.
-func GetWorkingMemory(rootDir string) *WorkingMemory {
+func GetWorkingMemory(ctx context.Context, rootDir string) *WorkingMemory {
 	// Get current branch
-	branchOut, err := runGit(rootDir, "branch", "--show-current")
+	branchOut, err := runGit(ctx, rootDir, "branch", "--show-current")
 	if err != nil {
 		return nil
 	}
 	branch := strings.TrimSpace(branchOut)
 
-	base := defaultBranch(rootDir)
+	base := defaultBranch(ctx, rootDir)
 
 	// Get commits ahead of the default branch — if none, omit working memory entirely
-	commitsOut, err := runGit(rootDir, "log", base+"..HEAD", "--oneline")
+	commitsOut, err := runGit(ctx, rootDir, "log", base+"..HEAD", "--oneline")
 	if err != nil {
 		return nil
 	}
@@ -77,17 +78,17 @@ func GetWorkingMemory(rootDir string) *WorkingMemory {
 	if m := issueNumberRe.FindStringSubmatch(branch); m != nil {
 		if n, err := strconv.Atoi(m[1]); err == nil && n > 0 {
 			wm.IssueNumber = n
-			ghFetchIssue(wm, n)
+			ghFetchIssue(ctx, wm, n)
 		}
 	}
 
 	// Changed files vs default branch
-	if out, err := runGit(rootDir, "diff", "--stat", base+"..HEAD"); err == nil {
+	if out, err := runGit(ctx, rootDir, "diff", "--stat", base+"..HEAD"); err == nil {
 		wm.ChangedFiles = parseStatLines(out)
 	}
 
 	// Uncommitted changes
-	if out, err := runGit(rootDir, "diff", "--stat"); err == nil {
+	if out, err := runGit(ctx, rootDir, "diff", "--stat"); err == nil {
 		wm.Uncommitted = parseStatLines(out)
 	}
 
@@ -124,9 +125,9 @@ func parseStatLines(s string) []string {
 }
 
 // ghFetchIssue populates IssueTitle and IssueBody from the GitHub CLI.
-// Failures are silently ignored.
-func ghFetchIssue(wm *WorkingMemory, issueNumber int) {
-	cmd := exec.Command("gh", "issue", "view", fmt.Sprintf("%d", issueNumber), "--json", "title,body")
+// Failures are silently ignored. The command is cancelled if ctx is done.
+func ghFetchIssue(ctx context.Context, wm *WorkingMemory, issueNumber int) {
+	cmd := exec.CommandContext(ctx, "gh", "issue", "view", fmt.Sprintf("%d", issueNumber), "--json", "title,body")
 	out, err := cmd.Output()
 	if err != nil {
 		return

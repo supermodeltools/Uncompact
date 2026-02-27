@@ -53,8 +53,12 @@ func runHandler(cmd *cobra.Command, args []string) error {
 		return silentExit()
 	}
 
-	// Detect project
-	proj, err := project.Detect("")
+	// Detect project and gather working memory with a short timeout so slow
+	// or broken git/gh operations never hang the hook indefinitely.
+	gitCtx, gitCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer gitCancel()
+
+	proj, err := project.Detect(gitCtx, "")
 	if err != nil {
 		logFn("[warn] project detection failed: %v", err)
 		return silentExit()
@@ -62,7 +66,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	logFn("[debug] project: %s (hash: %s)", proj.Name, proj.Hash)
 
 	// Gather working memory from git and GitHub (failures are silent)
-	wm := project.GetWorkingMemory(proj.RootDir)
+	wm := project.GetWorkingMemory(gitCtx, proj.RootDir)
 
 	// Open cache
 	dbPath, err := config.DBPath()

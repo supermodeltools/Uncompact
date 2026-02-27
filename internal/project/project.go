@@ -1,6 +1,7 @@
 package project
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"os"
@@ -19,7 +20,7 @@ type Info struct {
 }
 
 // Detect resolves the current project from the working directory.
-func Detect(dir string) (*Info, error) {
+func Detect(ctx context.Context, dir string) (*Info, error) {
 	if dir == "" {
 		var err error
 		dir, err = os.Getwd()
@@ -39,12 +40,12 @@ func Detect(dir string) (*Info, error) {
 	}
 
 	// Try to get git remote URL
-	if out, err := runGit(root, "remote", "get-url", "origin"); err == nil {
+	if out, err := runGit(ctx, root, "remote", "get-url", "origin"); err == nil {
 		info.GitURL = strings.TrimSpace(out)
 	}
 
 	// Try to get current branch
-	if out, err := runGit(root, "rev-parse", "--abbrev-ref", "HEAD"); err == nil {
+	if out, err := runGit(ctx, root, "rev-parse", "--abbrev-ref", "HEAD"); err == nil {
 		info.Branch = strings.TrimSpace(out)
 	}
 
@@ -76,8 +77,9 @@ func findGitRoot(start string) string {
 }
 
 // runGit runs a git command in the given directory and returns stdout.
-func runGit(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
+// The command is cancelled if ctx is done before it completes.
+func runGit(ctx context.Context, dir string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -87,7 +88,9 @@ func statusHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	// Cache / last injection
-	proj, err := project.Detect("")
+	gitCtx, gitCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer gitCancel()
+	proj, err := project.Detect(gitCtx, "")
 	if err != nil {
 		fmt.Printf("Project:  unknown (%v)\n", err)
 		return nil
@@ -213,7 +216,9 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	proj, err := project.Detect("")
+	gitCtx, gitCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer gitCancel()
+	proj, err := project.Detect(gitCtx, "")
 	if err != nil {
 		return fmt.Errorf("project detection failed: %w", err)
 	}
@@ -276,7 +281,9 @@ func cacheClearHandler(cmd *cobra.Command, args []string) error {
 	defer store.Close()
 
 	if cacheProjectFlag {
-		proj, err := project.Detect("")
+		gitCtx, gitCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer gitCancel()
+		proj, err := project.Detect(gitCtx, "")
 		if err != nil {
 			return fmt.Errorf("project detection failed: %w", err)
 		}

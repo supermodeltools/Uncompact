@@ -46,8 +46,12 @@ func pregenHandler(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Detect project
-	proj, err := project.Detect("")
+	// Detect project with a short timeout so slow or broken git operations
+	// never hang the hook indefinitely.
+	gitCtx, gitCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer gitCancel()
+
+	proj, err := project.Detect(gitCtx, "")
 	if err != nil {
 		logFn("[warn] project detection failed: %v", err)
 		return nil
