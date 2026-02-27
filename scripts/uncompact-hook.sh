@@ -40,10 +40,7 @@ if [ -n "$OUTPUT" ]; then
   CHAR_COUNT="${#OUTPUT}"
   APPROX_TOKENS=$(( CHAR_COUNT / 4 ))
 
-  # Emit context + status line to stdout — injected into Claude Code's context.
-  # No cache write: SessionStart:compact handles the injection directly.
-  printf '%s\n\n[uncompact] Context restored (~%d tokens)\n' "$OUTPUT" "$APPROX_TOKENS"
+  # Write to display cache — UserPromptSubmit hook will show this as a visible
+  # transcript message on the user's next message.
+  printf '%s\n\n[uncompact] Context restored (~%d tokens)\n' "$OUTPUT" "$APPROX_TOKENS" > "$DISPLAY_CACHE"
 fi
-
-# Clean up any stale display cache so UserPromptSubmit doesn't double-inject.
-rm -f "$DISPLAY_CACHE"
