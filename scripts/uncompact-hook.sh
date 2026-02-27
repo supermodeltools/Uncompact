@@ -38,7 +38,9 @@ OUTPUT="$("$UNCOMPACT" run --fallback --post-compact)"
 DISPLAY_CACHE="${TMPDIR:-/tmp}/uncompact-display-${UID:-$(id -u)}.txt"
 
 if [ -n "$OUTPUT" ]; then
-  # Write to display cache — UserPromptSubmit hook will show this as a visible
-  # transcript message on the user's next message.
-  printf '%s\n' "$OUTPUT" > "$DISPLAY_CACHE"
+  # Write securely and atomically to avoid disclosure/races.
+  umask 077
+  TMP_CACHE="$(mktemp "${DISPLAY_CACHE}.XXXXXX")" || exit 0
+  printf '%s\n' "$OUTPUT" > "$TMP_CACHE"
+  mv -f "$TMP_CACHE" "$DISPLAY_CACHE"
 fi
