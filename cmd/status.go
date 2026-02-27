@@ -8,11 +8,13 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/supermodeltools/uncompact/internal/api"
 	"github.com/supermodeltools/uncompact/internal/cache"
 	"github.com/supermodeltools/uncompact/internal/config"
 	"github.com/supermodeltools/uncompact/internal/hooks"
 	"github.com/supermodeltools/uncompact/internal/project"
 	tmpl "github.com/supermodeltools/uncompact/internal/template"
+	"github.com/supermodeltools/uncompact/internal/zip"
 )
 
 var logsLimit int
@@ -273,9 +275,39 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not authenticated — run 'uncompact auth login'")
 	}
 
-	fmt.Fprintln(os.Stderr, "[dry-run] no cache — would fetch from API (skipping in dry-run mode)")
-	fmt.Fprintf(os.Stderr, "[dry-run] project: %s (%s)\n", proj.Name, proj.RootDir)
-	fmt.Fprintf(os.Stderr, "[dry-run] max-tokens: %d\n", maxTokens)
+	// No cached graph — fetch from API but don't persist anything.
+	fmt.Fprintln(os.Stderr, "[dry-run] no cache — fetching from API (results will NOT be cached)")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	zipData, truncated, err := zip.RepoZip(proj.RootDir)
+	if err != nil {
+		return fmt.Errorf("zip error: %w", err)
+	}
+	if truncated {
+		fmt.Fprintln(os.Stderr, "[dry-run] WARNING: repo zip truncated at 10 MB limit — large repos may produce incomplete graph analysis")
+	}
+
+	logFn := makeLogger()
+	apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
+	graph, err := fetchGraphWithCircularDeps(ctx, apiClient, proj.Name, zipData)
+	if err != nil {
+		return fmt.Errorf("API error: %w", err)
+	}
+
+	opts := tmpl.RenderOptions{
+		MaxTokens:     maxTokens,
+		WorkingMemory: wm,
+	}
+	output, tokens, err := tmpl.Render(graph, proj.Name, opts)
+	if err != nil {
+		return fmt.Errorf("render error: %w", err)
+	}
+
+	fmt.Fprintf(os.Stderr, "[dry-run] %d tokens (max: %d)\n", tokens, maxTokens)
+	fmt.Fprintln(os.Stderr, "--- context bomb preview ---")
+	fmt.Print(output)
 	return nil
 }
 
