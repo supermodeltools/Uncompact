@@ -262,46 +262,54 @@ func New(baseURL, apiKey string, debug bool, logFn func(string, ...interface{}))
 	}
 }
 
-// GetGraph submits the repo zip and retrieves the project graph, handling async polling.
-// Polling is done by re-submitting the same POST with the same idempotency key; the
-// server returns cached job status on subsequent calls with the same key.
-func (c *Client) GetGraph(ctx context.Context, projectName string, repoZip []byte) (*ProjectGraph, error) {
-	c.logFn("[debug] submitting repo to Supermodel API (%d bytes)", len(repoZip))
-
-	idempotencyKey := uuid.NewString()
-	deadline := time.Now().Add(maxPollDuration)
-
-	// Build the multipart body once; reuse it across poll attempts via bytes.NewReader.
-	var bodyBuf bytes.Buffer
-	mw := multipart.NewWriter(&bodyBuf)
+// buildMultipartBody constructs the multipart/form-data body shared by both graph endpoints.
+func buildMultipartBody(projectName string, repoZip []byte) (bodyBytes []byte, contentType string, err error) {
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
 	_ = mw.WriteField("project_name", projectName)
 	fw, err := mw.CreateFormFile("file", "repo.zip")
 	if err != nil {
-		return nil, fmt.Errorf("creating multipart field: %w", err)
+		return nil, "", fmt.Errorf("creating multipart field: %w", err)
 	}
-	if _, err := fw.Write(repoZip); err != nil {
-		return nil, fmt.Errorf("writing zip: %w", err)
+	if _, err = fw.Write(repoZip); err != nil {
+		return nil, "", fmt.Errorf("writing zip: %w", err)
 	}
-	if err := mw.Close(); err != nil {
-		return nil, fmt.Errorf("closing multipart: %w", err)
+	if err = mw.Close(); err != nil {
+		return nil, "", fmt.Errorf("closing multipart: %w", err)
 	}
-	bodyBytes := bodyBuf.Bytes()
-	contentType := mw.FormDataContentType()
+	return buf.Bytes(), mw.FormDataContentType(), nil
+}
+
+// pollJob submits a pre-built multipart request to endpoint and polls until the async job
+// completes or the context is cancelled. onComplete is called with the raw result payload
+// when the job status is "completed"; the payload may be nil if the server returned none.
+// notFound, if non-nil, is called when the server returns 404 or 405; returning nil from
+// notFound stops polling with no error (caller interprets the absence as "unavailable").
+func (c *Client) pollJob(
+	ctx context.Context,
+	endpoint string,
+	bodyBytes []byte,
+	contentType string,
+	idempotencyKey string,
+	onComplete func(*json.RawMessage) error,
+	notFound func() error,
+) error {
+	deadline := time.Now().Add(maxPollDuration)
 
 	for attempt := 0; attempt < maxPollAttempts; attempt++ {
 		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("job timed out after %v", maxPollDuration)
+			return fmt.Errorf("job timed out after %v", maxPollDuration)
 		}
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return ctx.Err()
 		default:
 		}
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-			c.baseURL+"/v1/graphs/supermodel", bytes.NewReader(bodyBytes))
+			c.baseURL+endpoint, bytes.NewReader(bodyBytes))
 		if err != nil {
-			return nil, err
+			return err
 		}
 		req.Header.Set("Content-Type", contentType)
 		req.Header.Set("X-Api-Key", c.apiKey)
@@ -311,10 +319,10 @@ func (c *Client) GetGraph(ctx context.Context, projectName string, repoZip []byt
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
-			c.logFn("[warn] poll attempt %d: request error (will retry): %v", attempt+1, err)
+			c.logFn("[warn] poll attempt %d (%s): request error (will retry): %v", attempt+1, endpoint, err)
 			select {
 			case <-ctx.Done():
-				return nil, ctx.Err()
+				return ctx.Err()
 			case <-time.After(10 * time.Second):
 			}
 			continue
@@ -322,27 +330,33 @@ func (c *Client) GetGraph(ctx context.Context, projectName string, repoZip []byt
 		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
 		resp.Body.Close()
 		if readErr != nil {
-			c.logFn("[warn] poll attempt %d: error reading response (will retry): %v", attempt+1, readErr)
+			c.logFn("[warn] poll attempt %d (%s): error reading response (will retry): %v", attempt+1, endpoint, readErr)
 			select {
 			case <-ctx.Done():
-				return nil, ctx.Err()
+				return ctx.Err()
 			case <-time.After(10 * time.Second):
 			}
 			continue
 		}
 
-		c.logFn("[debug] poll attempt %d: HTTP %d", attempt+1, resp.StatusCode)
+		c.logFn("[debug] poll attempt %d (%s): HTTP %d", attempt+1, endpoint, resp.StatusCode)
 
+		isOK := false
 		switch resp.StatusCode {
 		case http.StatusUnauthorized:
-			return nil, fmt.Errorf("authentication failed: check your API key at %s", config.DashboardURL)
+			return fmt.Errorf("authentication failed: check your API key at %s", config.DashboardURL)
 		case http.StatusPaymentRequired:
-			return nil, fmt.Errorf("subscription required: visit %s to subscribe", config.DashboardURL)
+			return fmt.Errorf("subscription required: visit %s to subscribe", config.DashboardURL)
 		case http.StatusTooManyRequests:
-			return nil, fmt.Errorf("rate limit exceeded: please wait before retrying")
+			return fmt.Errorf("rate limit exceeded: please wait before retrying")
+		case http.StatusNotFound, http.StatusMethodNotAllowed:
+			if notFound != nil {
+				return notFound()
+			}
 		case http.StatusOK, http.StatusAccepted:
-			// Both 200 and 202 return the same async envelope
-		default:
+			isOK = true
+		}
+		if !isOK {
 			var errResp struct {
 				Message string `json:"message"`
 				Error   string `json:"error"`
@@ -355,28 +369,21 @@ func (c *Client) GetGraph(ctx context.Context, projectName string, repoZip []byt
 			if msg == "" {
 				msg = string(respBody)
 			}
-			return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, msg)
+			return fmt.Errorf("API error %d: %s", resp.StatusCode, msg)
 		}
 
 		var jobResp JobStatus
 		if err := json.Unmarshal(respBody, &jobResp); err != nil {
-			return nil, fmt.Errorf("parsing response: %w", err)
+			return fmt.Errorf("parsing response: %w", err)
 		}
 
 		c.logFn("[debug] job %s status: %s", jobResp.JobID, jobResp.Status)
 
 		switch jobResp.Status {
 		case "completed":
-			if jobResp.Result == nil {
-				return nil, fmt.Errorf("job completed but no graph data returned")
-			}
-			var ir SupermodelIR
-			if err := json.Unmarshal(*jobResp.Result, &ir); err != nil {
-				return nil, fmt.Errorf("parsing SupermodelIR result: %w", err)
-			}
-			return ir.toProjectGraph(projectName), nil
+			return onComplete(jobResp.Result)
 		case "failed":
-			return nil, fmt.Errorf("API job failed: %s", jobResp.Error)
+			return fmt.Errorf("API job failed: %s", jobResp.Error)
 		case "pending", "processing":
 			retryAfter := time.Duration(jobResp.RetryAfter) * time.Second
 			if retryAfter <= 0 {
@@ -385,7 +392,7 @@ func (c *Client) GetGraph(ctx context.Context, projectName string, repoZip []byt
 			c.logFn("[debug] waiting %v before next poll", retryAfter)
 			select {
 			case <-ctx.Done():
-				return nil, ctx.Err()
+				return ctx.Err()
 			case <-time.After(retryAfter):
 			}
 		default:
@@ -393,7 +400,38 @@ func (c *Client) GetGraph(ctx context.Context, projectName string, repoZip []byt
 		}
 	}
 
-	return nil, fmt.Errorf("job did not complete after %d attempts", maxPollAttempts)
+	return fmt.Errorf("job did not complete after %d attempts", maxPollAttempts)
+}
+
+// GetGraph submits the repo zip and retrieves the project graph, handling async polling.
+// Polling is done by re-submitting the same POST with the same idempotency key; the
+// server returns cached job status on subsequent calls with the same key.
+func (c *Client) GetGraph(ctx context.Context, projectName string, repoZip []byte) (*ProjectGraph, error) {
+	c.logFn("[debug] submitting repo to Supermodel API (%d bytes)", len(repoZip))
+
+	bodyBytes, contentType, err := buildMultipartBody(projectName, repoZip)
+	if err != nil {
+		return nil, err
+	}
+
+	var graph *ProjectGraph
+	if err := c.pollJob(ctx, "/v1/graphs/supermodel", bodyBytes, contentType, uuid.NewString(),
+		func(raw *json.RawMessage) error {
+			if raw == nil {
+				return fmt.Errorf("job completed but no graph data returned")
+			}
+			var ir SupermodelIR
+			if err := json.Unmarshal(*raw, &ir); err != nil {
+				return fmt.Errorf("parsing SupermodelIR result: %w", err)
+			}
+			graph = ir.toProjectGraph(projectName)
+			return nil
+		},
+		nil,
+	); err != nil {
+		return nil, err
+	}
+	return graph, nil
 }
 
 // GetCircularDependencies submits the repo zip to the circular dependency endpoint
@@ -402,135 +440,25 @@ func (c *Client) GetGraph(ctx context.Context, projectName string, repoZip []byt
 func (c *Client) GetCircularDependencies(ctx context.Context, projectName string, repoZip []byte) (*CircularDependencyResponse, error) {
 	c.logFn("[debug] checking circular dependencies (%d bytes)", len(repoZip))
 
-	idempotencyKey := uuid.NewString()
-	deadline := time.Now().Add(maxPollDuration)
-
-	// Build the multipart body once; reuse it across poll attempts via bytes.NewReader.
-	var bodyBuf bytes.Buffer
-	mw := multipart.NewWriter(&bodyBuf)
-	_ = mw.WriteField("project_name", projectName)
-	fw, err := mw.CreateFormFile("file", "repo.zip")
+	bodyBytes, contentType, err := buildMultipartBody(projectName, repoZip)
 	if err != nil {
-		return nil, fmt.Errorf("creating multipart field: %w", err)
-	}
-	if _, err := fw.Write(repoZip); err != nil {
-		return nil, fmt.Errorf("writing zip: %w", err)
-	}
-	if err := mw.Close(); err != nil {
-		return nil, fmt.Errorf("closing multipart: %w", err)
-	}
-	bodyBytes := bodyBuf.Bytes()
-	contentType := mw.FormDataContentType()
-
-	for attempt := 0; attempt < maxPollAttempts; attempt++ {
-		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("circular dependency job timed out after %v", maxPollDuration)
-		}
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-		}
-
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-			c.baseURL+"/v1/graphs/circular-dependencies", bytes.NewReader(bodyBytes))
-		if err != nil {
-			return nil, err
-		}
-		req.Header.Set("Content-Type", contentType)
-		req.Header.Set("X-Api-Key", c.apiKey)
-		req.Header.Set("Accept", "application/json")
-		req.Header.Set("User-Agent", "uncompact/1.0")
-		req.Header.Set("Idempotency-Key", idempotencyKey)
-
-		resp, err := c.httpClient.Do(req)
-		if err != nil {
-			c.logFn("[warn] circular dep poll attempt %d: request error (will retry): %v", attempt+1, err)
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(10 * time.Second):
-			}
-			continue
-		}
-		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
-		resp.Body.Close()
-		if readErr != nil {
-			c.logFn("[warn] circular dep poll attempt %d: error reading response (will retry): %v", attempt+1, readErr)
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(10 * time.Second):
-			}
-			continue
-		}
-
-		c.logFn("[debug] circular dep poll attempt %d: HTTP %d", attempt+1, resp.StatusCode)
-
-		switch resp.StatusCode {
-		case http.StatusUnauthorized:
-			return nil, fmt.Errorf("authentication failed: check your API key at %s", config.DashboardURL)
-		case http.StatusPaymentRequired:
-			return nil, fmt.Errorf("subscription required: visit %s to subscribe", config.DashboardURL)
-		case http.StatusTooManyRequests:
-			return nil, fmt.Errorf("rate limit exceeded: please wait before retrying")
-		case http.StatusNotFound, http.StatusMethodNotAllowed:
-			// Endpoint not available — treat as no data
-			return nil, nil
-		case http.StatusOK, http.StatusAccepted:
-			// Continue to parse
-		default:
-			var errResp struct {
-				Message string `json:"message"`
-				Error   string `json:"error"`
-			}
-			_ = json.Unmarshal(respBody, &errResp)
-			msg := errResp.Message
-			if msg == "" {
-				msg = errResp.Error
-			}
-			if msg == "" {
-				msg = string(respBody)
-			}
-			return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, msg)
-		}
-
-		var jobResp JobStatus
-		if err := json.Unmarshal(respBody, &jobResp); err != nil {
-			return nil, fmt.Errorf("parsing response: %w", err)
-		}
-
-		c.logFn("[debug] circular dep job %s status: %s", jobResp.JobID, jobResp.Status)
-
-		switch jobResp.Status {
-		case "completed":
-			if jobResp.Result == nil {
-				return &CircularDependencyResponse{}, nil
-			}
-			var result CircularDependencyResponse
-			if err := json.Unmarshal(*jobResp.Result, &result); err != nil {
-				return nil, fmt.Errorf("parsing circular dependency result: %w", err)
-			}
-			return &result, nil
-		case "failed":
-			return nil, fmt.Errorf("circular dependency job failed: %s", jobResp.Error)
-		case "pending", "processing":
-			retryAfter := time.Duration(jobResp.RetryAfter) * time.Second
-			if retryAfter <= 0 {
-				retryAfter = 10 * time.Second
-			}
-			c.logFn("[debug] waiting %v before next circular dep poll", retryAfter)
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(retryAfter):
-			}
-		default:
-			c.logFn("[debug] unknown circular dep job status: %s", jobResp.Status)
-		}
+		return nil, err
 	}
 
-	return nil, fmt.Errorf("circular dependency job did not complete after %d attempts", maxPollAttempts)
+	var result *CircularDependencyResponse
+	if err := c.pollJob(ctx, "/v1/graphs/circular-dependencies", bodyBytes, contentType, uuid.NewString(),
+		func(raw *json.RawMessage) error {
+			result = &CircularDependencyResponse{}
+			if raw == nil {
+				return nil
+			}
+			return json.Unmarshal(*raw, result)
+		},
+		func() error { return nil }, // 404/405 → endpoint unavailable, return nil, nil
+	); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // ValidateKey checks if the API key is valid by probing the graphs endpoint.
