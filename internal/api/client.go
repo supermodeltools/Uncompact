@@ -271,6 +271,23 @@ func (c *Client) GetGraph(ctx context.Context, projectName string, repoZip []byt
 	idempotencyKey := uuid.NewString()
 	deadline := time.Now().Add(maxPollDuration)
 
+	// Build the multipart body once; reuse it across poll attempts via bytes.NewReader.
+	var bodyBuf bytes.Buffer
+	mw := multipart.NewWriter(&bodyBuf)
+	_ = mw.WriteField("project_name", projectName)
+	fw, err := mw.CreateFormFile("file", "repo.zip")
+	if err != nil {
+		return nil, fmt.Errorf("creating multipart field: %w", err)
+	}
+	if _, err := fw.Write(repoZip); err != nil {
+		return nil, fmt.Errorf("writing zip: %w", err)
+	}
+	if err := mw.Close(); err != nil {
+		return nil, fmt.Errorf("closing multipart: %w", err)
+	}
+	bodyBytes := bodyBuf.Bytes()
+	contentType := mw.FormDataContentType()
+
 	for attempt := 0; attempt < maxPollAttempts; attempt++ {
 		if time.Now().After(deadline) {
 			return nil, fmt.Errorf("job timed out after %v", maxPollDuration)
@@ -281,27 +298,12 @@ func (c *Client) GetGraph(ctx context.Context, projectName string, repoZip []byt
 		default:
 		}
 
-		// Build multipart body on each attempt (re-POST with same idempotency key)
-		var body bytes.Buffer
-		mw := multipart.NewWriter(&body)
-		_ = mw.WriteField("project_name", projectName)
-		fw, err := mw.CreateFormFile("file", "repo.zip")
-		if err != nil {
-			return nil, fmt.Errorf("creating multipart field: %w", err)
-		}
-		if _, err := fw.Write(repoZip); err != nil {
-			return nil, fmt.Errorf("writing zip: %w", err)
-		}
-		if err := mw.Close(); err != nil {
-			return nil, fmt.Errorf("closing multipart: %w", err)
-		}
-
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-			c.baseURL+"/v1/graphs/supermodel", &body)
+			c.baseURL+"/v1/graphs/supermodel", bytes.NewReader(bodyBytes))
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("Content-Type", mw.FormDataContentType())
+		req.Header.Set("Content-Type", contentType)
 		req.Header.Set("X-Api-Key", c.apiKey)
 		req.Header.Set("Accept", "application/json")
 		req.Header.Set("User-Agent", "uncompact/1.0")
@@ -403,6 +405,23 @@ func (c *Client) GetCircularDependencies(ctx context.Context, projectName string
 	idempotencyKey := uuid.NewString()
 	deadline := time.Now().Add(maxPollDuration)
 
+	// Build the multipart body once; reuse it across poll attempts via bytes.NewReader.
+	var bodyBuf bytes.Buffer
+	mw := multipart.NewWriter(&bodyBuf)
+	_ = mw.WriteField("project_name", projectName)
+	fw, err := mw.CreateFormFile("file", "repo.zip")
+	if err != nil {
+		return nil, fmt.Errorf("creating multipart field: %w", err)
+	}
+	if _, err := fw.Write(repoZip); err != nil {
+		return nil, fmt.Errorf("writing zip: %w", err)
+	}
+	if err := mw.Close(); err != nil {
+		return nil, fmt.Errorf("closing multipart: %w", err)
+	}
+	bodyBytes := bodyBuf.Bytes()
+	contentType := mw.FormDataContentType()
+
 	for attempt := 0; attempt < maxPollAttempts; attempt++ {
 		if time.Now().After(deadline) {
 			return nil, fmt.Errorf("circular dependency job timed out after %v", maxPollDuration)
@@ -413,26 +432,12 @@ func (c *Client) GetCircularDependencies(ctx context.Context, projectName string
 		default:
 		}
 
-		var body bytes.Buffer
-		mw := multipart.NewWriter(&body)
-		_ = mw.WriteField("project_name", projectName)
-		fw, err := mw.CreateFormFile("file", "repo.zip")
-		if err != nil {
-			return nil, fmt.Errorf("creating multipart field: %w", err)
-		}
-		if _, err := fw.Write(repoZip); err != nil {
-			return nil, fmt.Errorf("writing zip: %w", err)
-		}
-		if err := mw.Close(); err != nil {
-			return nil, fmt.Errorf("closing multipart: %w", err)
-		}
-
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-			c.baseURL+"/v1/graphs/circular-dependencies", &body)
+			c.baseURL+"/v1/graphs/circular-dependencies", bytes.NewReader(bodyBytes))
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("Content-Type", mw.FormDataContentType())
+		req.Header.Set("Content-Type", contentType)
 		req.Header.Set("X-Api-Key", c.apiKey)
 		req.Header.Set("Accept", "application/json")
 		req.Header.Set("User-Agent", "uncompact/1.0")
