@@ -226,7 +226,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 		Timestamp:              time.Now().UTC(),
 		Project:                proj.RootDir,
 		ContextBombSizeBytes:   len(output),
-		SessionSnapshotPresent: wm != nil,
+		SessionSnapshotPresent: snap != nil,
 	})
 
 	// Log the injection
@@ -290,7 +290,7 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 		Timestamp:              time.Now().UTC(),
 		Project:                proj.RootDir,
 		ContextBombSizeBytes:   len(output),
-		SessionSnapshotPresent: wm != nil,
+		SessionSnapshotPresent: snap != nil,
 	})
 
 	return nil
