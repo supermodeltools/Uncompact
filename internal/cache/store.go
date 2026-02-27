@@ -203,6 +203,7 @@ type Stats struct {
 	TotalInjections int
 	APIFetches      int
 	CacheHits       int
+	StaleCacheHits  int
 	TotalTokens     int
 	AvgTokens       float64
 }
@@ -214,6 +215,7 @@ func (s *Store) GetStats(projectHash string) (*Stats, error) {
 			COUNT(*) as total,
 			COALESCE(SUM(CASE WHEN source = 'api' THEN 1 ELSE 0 END), 0) as api_fetches,
 			COALESCE(SUM(CASE WHEN source = 'cache' OR source = 'stale_cache' THEN 1 ELSE 0 END), 0) as cache_hits,
+			COALESCE(SUM(CASE WHEN source = 'stale_cache' THEN 1 ELSE 0 END), 0) as stale_cache_hits,
 			COALESCE(SUM(tokens), 0) as total_tokens,
 			AVG(tokens) as avg_tokens
 		FROM injection_log`
@@ -226,7 +228,7 @@ func (s *Store) GetStats(projectHash string) (*Stats, error) {
 	var st Stats
 	var avgTokens sql.NullFloat64
 	err := s.db.QueryRow(query, args...).Scan(
-		&st.TotalInjections, &st.APIFetches, &st.CacheHits, &st.TotalTokens, &avgTokens,
+		&st.TotalInjections, &st.APIFetches, &st.CacheHits, &st.StaleCacheHits, &st.TotalTokens, &avgTokens,
 	)
 	if err != nil {
 		return nil, err
