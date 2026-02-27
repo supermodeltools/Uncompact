@@ -76,9 +76,17 @@ type irSubdomain struct {
 // computeCriticalFiles derives the most-connected files by counting how many domains
 // reference each file as a key file. The top n files are returned, ranked descending.
 func computeCriticalFiles(domains []Domain, n int) []CriticalFile {
+	if n <= 0 {
+		return nil
+	}
 	counts := make(map[string]int)
 	for _, d := range domains {
+		seen := make(map[string]struct{}, len(d.KeyFiles))
 		for _, f := range d.KeyFiles {
+			if _, exists := seen[f]; exists {
+				continue
+			}
+			seen[f] = struct{}{}
 			counts[f]++
 		}
 	}
