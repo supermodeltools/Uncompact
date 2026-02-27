@@ -396,7 +396,12 @@ func (c *Client) pollJob(
 			case <-time.After(retryAfter):
 			}
 		default:
-			c.logFn("[debug] unknown job status: %s", jobResp.Status)
+			c.logFn("[debug] unknown job status: %s \xe2\x80\x94 retrying in 10s", jobResp.Status)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(10 * time.Second):
+			}
 		}
 	}
 
