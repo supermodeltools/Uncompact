@@ -124,7 +124,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 			// else: fall through to use stale cache
 		} else {
 			apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
-			freshGraph, err := apiClient.GetGraph(ctx, proj.Name, zipData)
+			freshGraph, err := fetchGraphWithCircularDeps(ctx, apiClient, proj.Name, zipData, logFn)
 			if err != nil {
 				logFn("[warn] API error: %v", err)
 				if graph == nil {
@@ -195,7 +195,7 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, logFn func(string, 
 	}
 
 	apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
-	graph, err := apiClient.GetGraph(ctx, proj.Name, zipData)
+	graph, err := fetchGraphWithCircularDeps(ctx, apiClient, proj.Name, zipData, logFn)
 	if err != nil {
 		logFn("[warn] API error: %v", err)
 		if fallback {
@@ -216,6 +216,31 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, logFn func(string, 
 
 	fmt.Print(output)
 	return nil
+}
+
+// fetchGraphWithCircularDeps calls GetGraph and GetCircularDependencies, storing
+// cycle count in Stats so it is cached alongside the graph.
+func fetchGraphWithCircularDeps(
+	ctx context.Context,
+	client *api.Client,
+	projectName string,
+	repoZip []byte,
+	logFn func(string, ...interface{}),
+) (*api.ProjectGraph, error) {
+	graph, err := client.GetGraph(ctx, projectName, repoZip)
+	if err != nil {
+		return nil, err
+	}
+
+	circDeps, err := client.GetCircularDependencies(ctx, projectName, repoZip)
+	if err != nil {
+		logFn("[warn] circular dependency check failed: %v", err)
+	} else if circDeps != nil {
+		graph.Stats.CircularDependencyCycles = len(circDeps.Cycles)
+		logFn("[debug] circular dependency cycles found: %d", graph.Stats.CircularDependencyCycles)
+	}
+
+	return graph, nil
 }
 
 // silentExit returns nil (success) so we never block Claude Code sessions.

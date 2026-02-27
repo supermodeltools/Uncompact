@@ -90,7 +90,7 @@ func pregenHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
-	graph, err := apiClient.GetGraph(ctx, proj.Name, zipData)
+	graph, err := fetchGraphWithCircularDeps(ctx, apiClient, proj.Name, zipData, logFn)
 	if err != nil {
 		logFn("[warn] API error: %v", err)
 		return nil
@@ -117,7 +117,7 @@ func pregenFetch(cfg *config.Config, proj *project.Info, logFn func(string, ...i
 	}
 
 	apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
-	_, err = apiClient.GetGraph(ctx, proj.Name, zipData)
+	_, err = fetchGraphWithCircularDeps(ctx, apiClient, proj.Name, zipData, logFn)
 	if err != nil {
 		logFn("[warn] API error: %v", err)
 	}

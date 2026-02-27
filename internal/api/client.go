@@ -219,9 +219,20 @@ type Domain struct {
 
 // Stats holds codebase statistics.
 type Stats struct {
-	TotalFiles     int      `json:"total_files"`
-	TotalFunctions int      `json:"total_functions"`
-	Languages      []string `json:"languages,omitempty"`
+	TotalFiles               int      `json:"total_files"`
+	TotalFunctions           int      `json:"total_functions"`
+	Languages                []string `json:"languages,omitempty"`
+	CircularDependencyCycles int      `json:"circular_dependency_cycles,omitempty"`
+}
+
+// CircularDependencyCycle represents a single circular import chain.
+type CircularDependencyCycle struct {
+	Cycle []string `json:"cycle"`
+}
+
+// CircularDependencyResponse is the result from the circular dependency endpoint.
+type CircularDependencyResponse struct {
+	Cycles []CircularDependencyCycle `json:"cycles"`
 }
 
 // JobStatus is the async envelope returned by the Supermodel API.
@@ -368,6 +379,128 @@ func (c *Client) GetGraph(ctx context.Context, projectName string, repoZip []byt
 	}
 
 	return nil, fmt.Errorf("job did not complete after %d attempts", maxPollAttempts)
+}
+
+// GetCircularDependencies submits the repo zip to the circular dependency endpoint
+// and returns the list of detected import cycles. Returns nil, nil if the endpoint
+// is unavailable. If available but no cycles are found, returns an empty response.
+func (c *Client) GetCircularDependencies(ctx context.Context, projectName string, repoZip []byte) (*CircularDependencyResponse, error) {
+	c.logFn("[debug] checking circular dependencies (%d bytes)", len(repoZip))
+
+	idempotencyKey := uuid.NewString()
+	deadline := time.Now().Add(maxPollDuration)
+
+	for attempt := 0; attempt < maxPollAttempts; attempt++ {
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("circular dependency job timed out after %v", maxPollDuration)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		var body bytes.Buffer
+		mw := multipart.NewWriter(&body)
+		_ = mw.WriteField("project_name", projectName)
+		fw, err := mw.CreateFormFile("file", "repo.zip")
+		if err != nil {
+			return nil, fmt.Errorf("creating multipart field: %w", err)
+		}
+		if _, err := fw.Write(repoZip); err != nil {
+			return nil, fmt.Errorf("writing zip: %w", err)
+		}
+		if err := mw.Close(); err != nil {
+			return nil, fmt.Errorf("closing multipart: %w", err)
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+			c.baseURL+"/v1/graphs/circular-dependencies", &body)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", mw.FormDataContentType())
+		req.Header.Set("X-Api-Key", c.apiKey)
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("User-Agent", "uncompact/1.0")
+		req.Header.Set("Idempotency-Key", idempotencyKey)
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("circular dependency request failed: %w", err)
+		}
+		respBody, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if readErr != nil {
+			return nil, fmt.Errorf("reading response: %w", readErr)
+		}
+
+		c.logFn("[debug] circular dep poll attempt %d: HTTP %d", attempt+1, resp.StatusCode)
+
+		switch resp.StatusCode {
+		case http.StatusUnauthorized:
+			return nil, fmt.Errorf("authentication failed: check your API key at %s", config.DashboardURL)
+		case http.StatusPaymentRequired:
+			return nil, fmt.Errorf("subscription required: visit %s to subscribe", config.DashboardURL)
+		case http.StatusTooManyRequests:
+			return nil, fmt.Errorf("rate limit exceeded: please wait before retrying")
+		case http.StatusNotFound, http.StatusMethodNotAllowed:
+			// Endpoint not available — treat as no data
+			return nil, nil
+		case http.StatusOK, http.StatusAccepted:
+			// Continue to parse
+		default:
+			var errResp struct {
+				Message string `json:"message"`
+				Error   string `json:"error"`
+			}
+			_ = json.Unmarshal(respBody, &errResp)
+			msg := errResp.Message
+			if msg == "" {
+				msg = errResp.Error
+			}
+			if msg == "" {
+				msg = string(respBody)
+			}
+			return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, msg)
+		}
+
+		var jobResp JobStatus
+		if err := json.Unmarshal(respBody, &jobResp); err != nil {
+			return nil, fmt.Errorf("parsing response: %w", err)
+		}
+
+		c.logFn("[debug] circular dep job %s status: %s", jobResp.JobID, jobResp.Status)
+
+		switch jobResp.Status {
+		case "completed":
+			if jobResp.Result == nil {
+				return &CircularDependencyResponse{}, nil
+			}
+			var result CircularDependencyResponse
+			if err := json.Unmarshal(*jobResp.Result, &result); err != nil {
+				return nil, fmt.Errorf("parsing circular dependency result: %w", err)
+			}
+			return &result, nil
+		case "failed":
+			return nil, fmt.Errorf("circular dependency job failed: %s", jobResp.Error)
+		case "pending", "processing":
+			retryAfter := time.Duration(jobResp.RetryAfter) * time.Second
+			if retryAfter <= 0 {
+				retryAfter = 10 * time.Second
+			}
+			c.logFn("[debug] waiting %v before next circular dep poll", retryAfter)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(retryAfter):
+			}
+		default:
+			c.logFn("[debug] unknown circular dep job status: %s", jobResp.Status)
+		}
+	}
+
+	return nil, fmt.Errorf("circular dependency job did not complete after %d attempts", maxPollAttempts)
 }
 
 // ValidateKey checks if the API key is valid by probing the graphs endpoint.
