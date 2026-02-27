@@ -496,7 +496,7 @@ func (c *Client) GetCircularDependencies(ctx context.Context, projectName string
 			case <-time.After(retryAfter):
 			}
 		default:
-			c.logFn("[debug] unknown circular dep job status: %s", jobResp.Status)
+			return nil, fmt.Errorf("unknown circular dependency job status: %q", jobResp.Status)
 		}
 	}
 
