@@ -36,6 +36,8 @@ func showCacheHandler(cmd *cobra.Command, args []string) error {
 
 	if len(data) > 0 {
 		fmt.Print(string(data))
+		approxTokens := len(data) / 4
+		fmt.Fprintf(os.Stderr, "[uncompact] Context replayed from compact (~%d tokens)\n", approxTokens)
 	}
 	return nil
 }
