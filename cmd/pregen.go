@@ -74,7 +74,7 @@ func pregenHandler(cmd *cobra.Command, args []string) error {
 
 	// Check if cache is already fresh — skip API call if so
 	if !forceRefresh {
-		_, fresh, _, err := store.Get(proj.Hash)
+		_, fresh, _, _, err := store.Get(proj.Hash)
 		if err == nil && fresh {
 			logFn("[debug] cache is fresh, skipping pregen")
 			return nil
