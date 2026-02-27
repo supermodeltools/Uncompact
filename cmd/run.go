@@ -201,6 +201,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	// Render context bomb
+	claudeMD := local.ReadClaudeMD(proj.RootDir)
 	opts := tmpl.RenderOptions{
 		MaxTokens:       maxTokens,
 		Stale:           stale,
@@ -208,6 +209,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 		WorkingMemory:   wm,
 		PostCompact:     postCompact,
 		SessionSnapshot: snap,
+		ClaudeMD:        claudeMD,
 	}
 	output, tokens, err := tmpl.Render(graph, proj.Name, opts)
 	if err != nil {
@@ -327,7 +329,8 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 		return silentExit()
 	}
 
-	opts := tmpl.RenderOptions{MaxTokens: maxTokens, WorkingMemory: wm, PostCompact: postCompact, SessionSnapshot: snap}
+	claudeMD := local.ReadClaudeMD(proj.RootDir)
+	opts := tmpl.RenderOptions{MaxTokens: maxTokens, WorkingMemory: wm, PostCompact: postCompact, SessionSnapshot: snap, ClaudeMD: claudeMD}
 	output, _, err := tmpl.Render(graph, proj.Name, opts)
 	if err != nil {
 		logFn("[warn] render error: %v", err)
