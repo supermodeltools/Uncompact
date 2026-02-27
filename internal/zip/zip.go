@@ -104,6 +104,29 @@ func (s SkipReport) Truncated() bool {
 	return len(s.OversizedFiles) > 0 || s.BudgetSkipped > 0
 }
 
+// addFileToZip opens path, creates a zip entry named rel inside w, and copies
+// the file contents. It returns the number of bytes written. Using a helper
+// function ensures that defer f.Close() is scoped to each individual file
+// rather than accumulating until the outer RepoZip function returns.
+func addFileToZip(w *zip.Writer, path, rel string) (int64, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, nil
+	}
+	defer f.Close()
+
+	zw, err := w.Create(rel)
+	if err != nil {
+		return 0, nil
+	}
+
+	n, err := io.Copy(zw, f)
+	if err != nil {
+		return 0, nil
+	}
+	return n, nil
+}
+
 // RepoZip creates an in-memory ZIP archive of the project root.
 // The second return value describes any files that were excluded from the archive.
 func RepoZip(root string) ([]byte, SkipReport, error) {
@@ -173,18 +196,7 @@ func RepoZip(root string) ([]byte, SkipReport, error) {
 			return nil
 		}
 
-		f, err := os.Open(path)
-		if err != nil {
-			return nil
-		}
-		defer f.Close()
-
-		zw, err := w.Create(rel)
-		if err != nil {
-			return nil
-		}
-
-		n, err := io.Copy(zw, f)
+		n, err := addFileToZip(w, path, rel)
 		if err != nil {
 			return nil
 		}
