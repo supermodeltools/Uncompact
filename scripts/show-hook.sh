@@ -8,13 +8,13 @@
 
 DISPLAY_CACHE="${TMPDIR:-/tmp}/uncompact-display-${UID:-$(id -u)}.txt"
 
-if [ ! -f "$DISPLAY_CACHE" ]; then
-  exit 0
-fi
-
-# Read and remove atomically — prevent double-display if hooks fire concurrently.
-OUTPUT="$(cat "$DISPLAY_CACHE")"
-rm -f "$DISPLAY_CACHE"
+# Atomically claim the cache file via mv (POSIX guarantees mv on same filesystem
+# is atomic). Whichever concurrent invocation wins the mv gets the content; any
+# racing invocations see no file at the original path and exit cleanly.
+TMP_READ="$(mktemp)"
+mv -f "$DISPLAY_CACHE" "$TMP_READ" 2>/dev/null || { rm -f "$TMP_READ"; exit 0; }
+OUTPUT="$(cat "$TMP_READ")"
+rm -f "$TMP_READ"
 
 if [ -n "$OUTPUT" ]; then
   CHAR_COUNT="${#OUTPUT}"
