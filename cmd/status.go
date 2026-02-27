@@ -79,8 +79,10 @@ func statusHandler(cmd *cobra.Command, args []string) error {
 	// Hooks status
 	settingsPath, _ := hooks.FindSettingsFile()
 	if settingsPath != "" {
-		installed, _ := hooks.Verify(settingsPath)
-		if installed {
+		installed, err := hooks.Verify(settingsPath)
+		if err != nil {
+			fmt.Printf("Hooks:    error checking (%v)\n", err)
+		} else if installed {
 			fmt.Printf("Hooks:    installed (%s)\n", settingsPath)
 		} else {
 			fmt.Printf("Hooks:    NOT installed (run 'uncompact install')\n")
