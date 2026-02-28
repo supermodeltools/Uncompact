@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/supermodeltools/uncompact/internal/fsutil"
 )
 
 // RepoInfo holds all detected information about the repository.
@@ -48,24 +50,19 @@ func Analyze(dir string) *RepoInfo {
 	}
 
 	switch {
-	case fileExists(filepath.Join(dir, "go.mod")):
+	case fsutil.FileExists(filepath.Join(dir, "go.mod")):
 		analyzeGo(dir, info)
-	case fileExists(filepath.Join(dir, "package.json")):
+	case fsutil.FileExists(filepath.Join(dir, "package.json")):
 		analyzeNode(dir, info)
-	case fileExists(filepath.Join(dir, "Cargo.toml")):
+	case fsutil.FileExists(filepath.Join(dir, "Cargo.toml")):
 		analyzeRust(dir, info)
-	case fileExists(filepath.Join(dir, "pyproject.toml")), fileExists(filepath.Join(dir, "requirements.txt")):
+	case fsutil.FileExists(filepath.Join(dir, "pyproject.toml")), fsutil.FileExists(filepath.Join(dir, "requirements.txt")):
 		analyzePython(dir, info)
 	default:
 		info.Language = "Unknown"
 	}
 
 	return info
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
 
 // makefileHasTarget returns true if a Makefile in dir has a target named target.
@@ -133,10 +130,10 @@ func analyzeGo(dir string, info *RepoInfo) {
 	}
 
 	// Lint command.
-	hasGolangCI := fileExists(filepath.Join(dir, ".golangci.yml")) ||
-		fileExists(filepath.Join(dir, ".golangci.yaml")) ||
-		fileExists(filepath.Join(dir, ".golangci.json")) ||
-		fileExists(filepath.Join(dir, ".golangci.toml"))
+	hasGolangCI := fsutil.FileExists(filepath.Join(dir, ".golangci.yml")) ||
+		fsutil.FileExists(filepath.Join(dir, ".golangci.yaml")) ||
+		fsutil.FileExists(filepath.Join(dir, ".golangci.json")) ||
+		fsutil.FileExists(filepath.Join(dir, ".golangci.toml"))
 	if hasGolangCI {
 		info.LintCmd = "golangci-lint run"
 		info.CodeStyle = "Uses golangci-lint for style enforcement. Run `golangci-lint run` before committing."
@@ -198,14 +195,14 @@ func analyzeNode(dir string, info *RepoInfo) {
 
 	// Detect linter from config files if not set from package.json scripts.
 	if info.LintCmd == "" {
-		hasESLint := fileExists(filepath.Join(dir, ".eslintrc.js")) ||
-			fileExists(filepath.Join(dir, ".eslintrc.json")) ||
-			fileExists(filepath.Join(dir, ".eslintrc.yml")) ||
-			fileExists(filepath.Join(dir, ".eslintrc.yaml")) ||
-			fileExists(filepath.Join(dir, "eslint.config.js")) ||
-			fileExists(filepath.Join(dir, "eslint.config.mjs"))
-		hasBiome := fileExists(filepath.Join(dir, "biome.json")) ||
-			fileExists(filepath.Join(dir, "biome.jsonc"))
+		hasESLint := fsutil.FileExists(filepath.Join(dir, ".eslintrc.js")) ||
+			fsutil.FileExists(filepath.Join(dir, ".eslintrc.json")) ||
+			fsutil.FileExists(filepath.Join(dir, ".eslintrc.yml")) ||
+			fsutil.FileExists(filepath.Join(dir, ".eslintrc.yaml")) ||
+			fsutil.FileExists(filepath.Join(dir, "eslint.config.js")) ||
+			fsutil.FileExists(filepath.Join(dir, "eslint.config.mjs"))
+		hasBiome := fsutil.FileExists(filepath.Join(dir, "biome.json")) ||
+			fsutil.FileExists(filepath.Join(dir, "biome.jsonc"))
 		if hasESLint {
 			info.LintCmd = "npx eslint ."
 		} else if hasBiome {
@@ -214,11 +211,11 @@ func analyzeNode(dir string, info *RepoInfo) {
 	}
 
 	// Detect formatter.
-	hasPrettier := fileExists(filepath.Join(dir, ".prettierrc")) ||
-		fileExists(filepath.Join(dir, ".prettierrc.json")) ||
-		fileExists(filepath.Join(dir, ".prettierrc.js")) ||
-		fileExists(filepath.Join(dir, "prettier.config.js")) ||
-		fileExists(filepath.Join(dir, "prettier.config.mjs"))
+	hasPrettier := fsutil.FileExists(filepath.Join(dir, ".prettierrc")) ||
+		fsutil.FileExists(filepath.Join(dir, ".prettierrc.json")) ||
+		fsutil.FileExists(filepath.Join(dir, ".prettierrc.js")) ||
+		fsutil.FileExists(filepath.Join(dir, "prettier.config.js")) ||
+		fsutil.FileExists(filepath.Join(dir, "prettier.config.mjs"))
 	if hasPrettier {
 		info.CodeStyle = "Uses Prettier for formatting. Run `npx prettier --write .` before committing."
 	}
@@ -311,16 +308,16 @@ func analyzePython(dir string, info *RepoInfo) {
 
 	// Fallback lint detection.
 	if info.LintCmd == "" {
-		if fileExists(filepath.Join(dir, "ruff.toml")) || fileExists(filepath.Join(dir, ".ruff.toml")) {
+		if fsutil.FileExists(filepath.Join(dir, "ruff.toml")) || fsutil.FileExists(filepath.Join(dir, ".ruff.toml")) {
 			info.LintCmd = "ruff check ."
-		} else if fileExists(filepath.Join(dir, ".flake8")) {
+		} else if fsutil.FileExists(filepath.Join(dir, ".flake8")) {
 			info.LintCmd = "flake8"
 		}
 	}
 
 	// Test fallback.
 	if info.TestCmd == "" {
-		if fileExists(filepath.Join(dir, "pytest.ini")) || fileExists(filepath.Join(dir, "setup.cfg")) {
+		if fsutil.FileExists(filepath.Join(dir, "pytest.ini")) || fsutil.FileExists(filepath.Join(dir, "setup.cfg")) {
 			info.TestCmd = "pytest"
 		}
 	}
