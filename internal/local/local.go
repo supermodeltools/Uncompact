@@ -145,6 +145,11 @@ func collectFiles(ctx context.Context, rootDir string) (extCounts map[string]int
 			return nil
 		}
 
+		// Skip symlinks to avoid including files outside the repo root.
+		if d.Type()&fs.ModeSymlink != 0 {
+			return nil
+		}
+
 		rel, err := filepath.Rel(rootDir, path)
 		if err != nil {
 			return nil
