@@ -105,7 +105,6 @@ func buildSnapshotContent(transcriptPath string, logFn func(string, ...interface
 
 	var userMessages []string
 	var filesInFocus []string
-	seenFiles := make(map[string]bool)
 
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
 	for _, line := range lines {
@@ -128,12 +127,11 @@ func buildSnapshotContent(transcriptPath string, logFn func(string, ...interface
 			userMessages = append(userMessages, text)
 		}
 
-		// Extract file paths from any message, accumulating all unique paths
-		// so we can keep the most recent ones after the full scan.
+		// Extract file paths from any message, appending each occurrence so
+		// that re-referenced paths move toward the end of the slice.
 		for _, word := range strings.Fields(text) {
 			word = strings.Trim(word, "`,\"'()[]")
-			if looksLikeFilePath(word) && !seenFiles[word] {
-				seenFiles[word] = true
+			if looksLikeFilePath(word) {
 				filesInFocus = append(filesInFocus, word)
 			}
 		}
@@ -142,6 +140,24 @@ func buildSnapshotContent(transcriptPath string, logFn func(string, ...interface
 	// Keep the 5 most recent user messages for context
 	if len(userMessages) > 5 {
 		userMessages = userMessages[len(userMessages)-5:]
+	}
+
+	// Deduplicate filesInFocus keeping only the last occurrence of each path,
+	// so that files re-referenced later in the session stay near the end.
+	{
+		seen := make(map[string]bool)
+		deduped := make([]string, 0, len(filesInFocus))
+		for i := len(filesInFocus) - 1; i >= 0; i-- {
+			if !seen[filesInFocus[i]] {
+				seen[filesInFocus[i]] = true
+				deduped = append(deduped, filesInFocus[i])
+			}
+		}
+		// Reverse to restore chronological order (most-recently referenced last).
+		for i, j := 0, len(deduped)-1; i < j; i, j = i+1, j-1 {
+			deduped[i], deduped[j] = deduped[j], deduped[i]
+		}
+		filesInFocus = deduped
 	}
 
 	// Keep the 10 most recent file paths (mirrors the userMessages strategy above)
