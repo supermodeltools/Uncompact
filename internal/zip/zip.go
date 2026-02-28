@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,7 +16,7 @@ import (
 
 // skipDirs are directories to exclude from the repo zip.
 // Note: any directory whose name starts with "." is also skipped unconditionally
-// (see the filepath.Walk callback below), so dot-prefixed directories such as
+// (see the filepath.WalkDir callback below), so dot-prefixed directories such as
 // .venv, .gradle, .turbo, .parcel-cache, .dart_tool, .nyc_output, .svelte-kit,
 // and .output are already excluded without needing explicit entries here.
 var skipDirs = map[string]bool{
@@ -162,7 +163,7 @@ func RepoZip(ctx context.Context, root string) ([]byte, SkipReport, error) {
 	// hardcoded skip lists below.
 	gitFiles := buildGitFileSet(ctx, root)
 
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -181,7 +182,7 @@ func RepoZip(ctx context.Context, root string) ([]byte, SkipReport, error) {
 
 		// Skip hidden entries and known large/irrelevant directories.
 		base := filepath.Base(path)
-		if info.IsDir() {
+		if d.IsDir() {
 			if skipDirs[base] || strings.HasPrefix(base, ".") {
 				return filepath.SkipDir
 			}
@@ -194,7 +195,7 @@ func RepoZip(ctx context.Context, root string) ([]byte, SkipReport, error) {
 		}
 
 		// Skip symlinks to avoid including files outside the repo root.
-		if info.Mode()&os.ModeSymlink != 0 {
+		if d.Type()&fs.ModeSymlink != 0 {
 			return nil
 		}
 
@@ -207,6 +208,13 @@ func RepoZip(ctx context.Context, root string) ([]byte, SkipReport, error) {
 		ext := strings.ToLower(filepath.Ext(path))
 		if skipExts[ext] {
 			return nil
+		}
+
+		// Get file info for size checks. d.Info reuses directory-read metadata
+		// when available, avoiding an extra Lstat syscall on most platforms.
+		info, err := d.Info()
+		if err != nil {
+			return nil // file removed between walk and stat; skip silently
 		}
 
 		// Skip large files, recording the path so callers can report them.
