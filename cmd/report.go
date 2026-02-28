@@ -10,6 +10,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/supermodeltools/uncompact/internal/activitylog"
+	"github.com/supermodeltools/uncompact/internal/cache"
+	"github.com/supermodeltools/uncompact/internal/config"
 )
 
 var (
@@ -40,16 +42,17 @@ func init() {
 
 // reportData is the structured output for --json.
 type reportData struct {
-	Window                 string             `json:"window"`
-	Compactions            int                `json:"compactions"`
-	ContextBombsDelivered  int                `json:"context_bombs_delivered"`
-	SessionSnapshotsSaved  int                `json:"session_snapshots_saved"`
-	TotalContextBombBytes  int                `json:"total_context_bomb_bytes"`
-	EstimatedTokensRestored int               `json:"estimated_tokens_restored"`
-	EstimatedHoursSaved    float64            `json:"estimated_hours_saved"`
-	TopProjects            []projectActivity  `json:"top_projects"`
-	LastCompaction         *time.Time         `json:"last_compaction,omitempty"`
-	LastCompactionProject  string             `json:"last_compaction_project,omitempty"`
+	Window                string            `json:"window"`
+	Compactions           int               `json:"compactions"`
+	ContextBombsDelivered int               `json:"context_bombs_delivered"`
+	SessionSnapshotsSaved int               `json:"session_snapshots_saved"`
+	TotalContextBombBytes int               `json:"total_context_bomb_bytes"`
+	TotalTokens           int               `json:"total_tokens"`
+	TokensExact           bool              `json:"tokens_exact"`
+	EstimatedHoursSaved   float64           `json:"estimated_hours_saved"`
+	TopProjects           []projectActivity `json:"top_projects"`
+	LastCompaction        *time.Time        `json:"last_compaction,omitempty"`
+	LastCompactionProject string            `json:"last_compaction_project,omitempty"`
 }
 
 type projectActivity struct {
@@ -81,6 +84,17 @@ func reportHandler(cmd *cobra.Command, args []string) error {
 
 	filtered := filterEntries(entries, since, filterProject)
 	rpt := buildReportData(filtered, windowLabel)
+
+	// Replace the byte-based token estimate with exact counts from the SQLite injection log.
+	if dbPath, err := config.DBPath(); err == nil {
+		if store, err := cache.Open(dbPath); err == nil {
+			defer store.Close()
+			if stats, err := store.GetStats(""); err == nil && stats.TotalInjections > 0 {
+				rpt.TotalTokens = stats.TotalTokens
+				rpt.TokensExact = true
+			}
+		}
+	}
 
 	if reportJSON {
 		enc := json.NewEncoder(os.Stdout)
@@ -150,7 +164,7 @@ func buildReportData(filtered []activitylog.Entry, windowLabel string) reportDat
 		topProjects[i] = projectActivity{Path: kvs[i].k, Compactions: kvs[i].v}
 	}
 
-	// Each context bomb is ~4 bytes per token.
+	// Fallback: each context bomb is ~4 bytes per token. Overridden by exact DB data in reportHandler.
 	estimatedTokens := totalBytes / 4
 	// Each compaction saved ~10 minutes of manual context recovery.
 	estimatedHours := float64(len(filtered)) * 10.0 / 60.0
@@ -164,16 +178,16 @@ func buildReportData(filtered []activitylog.Entry, windowLabel string) reportDat
 	}
 
 	return reportData{
-		Window:                  windowLabel,
-		Compactions:             len(filtered),
-		ContextBombsDelivered:   len(filtered),
-		SessionSnapshotsSaved:   snapshots,
-		TotalContextBombBytes:   totalBytes,
-		EstimatedTokensRestored: estimatedTokens,
-		EstimatedHoursSaved:     estimatedHours,
-		TopProjects:             topProjects,
-		LastCompaction:          lastTime,
-		LastCompactionProject:   lastPath,
+		Window:                windowLabel,
+		Compactions:           len(filtered),
+		ContextBombsDelivered: len(filtered),
+		SessionSnapshotsSaved: snapshots,
+		TotalContextBombBytes: totalBytes,
+		TotalTokens:           estimatedTokens,
+		EstimatedHoursSaved:   estimatedHours,
+		TopProjects:           topProjects,
+		LastCompaction:        lastTime,
+		LastCompactionProject: lastPath,
 	}
 }
 
@@ -185,7 +199,11 @@ func printReport(r reportData) error {
 	fmt.Printf("  Context bombs delivered: %d\n", r.ContextBombsDelivered)
 	fmt.Printf("  Session snapshots saved: %d  (requires PreCompact hook)\n", r.SessionSnapshotsSaved)
 	fmt.Println()
-	fmt.Printf("  Estimated tokens restored: ~%s\n", formatThousands(r.EstimatedTokensRestored))
+	if r.TokensExact {
+		fmt.Printf("  Tokens restored:           %s\n", formatThousands(r.TotalTokens))
+	} else {
+		fmt.Printf("  Tokens restored (est.):    ~%s\n", formatThousands(r.TotalTokens))
+	}
 	fmt.Printf("  Estimated time saved:      ~%.1f hours\n", r.EstimatedHoursSaved)
 	fmt.Println()
 
