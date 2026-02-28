@@ -97,6 +97,11 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 
 	now := time.Now().UTC()
 
+	staleDuration := ""
+	if opts.Stale && opts.StaleAt != nil {
+		staleDuration = humanDuration(now.Sub(*opts.StaleAt))
+	}
+
 	data := struct {
 		ProjectName     string
 		Timestamp       string
@@ -112,14 +117,11 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 		Timestamp:       now.Format("2006-01-02 15:04:05 UTC"),
 		Graph:           graph,
 		Stale:           opts.Stale,
+		StaleDuration:   staleDuration,
 		WorkingMemory:   opts.WorkingMemory,
 		SessionSnapshot: opts.SessionSnapshot,
 		ClaudeMD:        opts.ClaudeMD,
 		LocalMode:       opts.LocalMode,
-	}
-
-	if opts.Stale && opts.StaleAt != nil {
-		data.StaleDuration = humanDuration(now.Sub(*opts.StaleAt))
 	}
 
 	funcMap := gotmpl.FuncMap{
@@ -152,7 +154,7 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 	} else {
 		// If over budget, truncate domains to fit
 		var err error
-		result, resultTokens, err = truncateToTokenBudget(graph, projectName, opts.MaxTokens, graph.Stats.CircularDependencyCycles, opts.WorkingMemory, opts.SessionSnapshot, opts.ClaudeMD, opts.LocalMode)
+		result, resultTokens, err = truncateToTokenBudget(graph, projectName, opts.MaxTokens, graph.Stats.CircularDependencyCycles, opts.WorkingMemory, opts.SessionSnapshot, opts.ClaudeMD, opts.LocalMode, opts.Stale, staleDuration)
 		if err != nil {
 			return "", 0, err
 		}
@@ -172,7 +174,7 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 			if tokens <= budget {
 				result, resultTokens = fullText, tokens
 			} else {
-				truncated, truncatedTokens, truncErr := truncateToTokenBudget(graph, projectName, budget, graph.Stats.CircularDependencyCycles, opts.WorkingMemory, opts.SessionSnapshot, opts.ClaudeMD, opts.LocalMode)
+				truncated, truncatedTokens, truncErr := truncateToTokenBudget(graph, projectName, budget, graph.Stats.CircularDependencyCycles, opts.WorkingMemory, opts.SessionSnapshot, opts.ClaudeMD, opts.LocalMode, opts.Stale, staleDuration)
 				if truncErr != nil {
 					return "", 0, truncErr
 				}
@@ -197,11 +199,23 @@ func truncateToTokenBudget(
 	snap *snapshot.SessionSnapshot,
 	claudeMD string,
 	localMode bool,
+	stale bool,
+	staleDuration string,
 ) (string, int, error) {
 
 	// Build a minimal required header
 	var hdr strings.Builder
 	hdr.WriteString(fmt.Sprintf("# Uncompact Context — %s\n\n", projectName))
+	// Emit timestamp + stale banner (mirrors the main template banner)
+	now := time.Now().UTC()
+	banner := fmt.Sprintf("> Injected by Uncompact at %s", now.Format("2006-01-02 15:04:05 UTC"))
+	if localMode {
+		banner += " | local mode (set SUPERMODEL_API_KEY for AI-powered features)"
+	}
+	if stale && staleDuration != "" {
+		banner += fmt.Sprintf(" | ⚠️ STALE: last updated %s", staleDuration)
+	}
+	hdr.WriteString(banner + "\n")
 	if circularCycles > 0 {
 		label := "cycles"
 		if circularCycles == 1 {
