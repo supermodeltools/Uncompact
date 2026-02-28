@@ -35,7 +35,9 @@ func writeDisplayCache(content string) error {
 	}
 	if _, err := tmp.WriteString(content); err != nil {
 		tmp.Close()
-		os.Remove(tmp.Name())
+		if removeErr := os.Remove(tmp.Name()); removeErr != nil {
+			fmt.Fprintf(os.Stderr, "[debug] failed to remove temp file %s: %v\n", tmp.Name(), removeErr)
+		}
 		return err
 	}
 	tmp.Close()
