@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -285,6 +286,16 @@ func buildMultipartBody(projectName string, repoZip []byte) (bodyBytes []byte, c
 	return buf.Bytes(), mw.FormDataContentType(), nil
 }
 
+// ctxDeadlineErr converts a cancelled context error into a human-readable message.
+// When the deadline fires it returns a descriptive timeout error; context.Canceled
+// (e.g. Ctrl-C) is returned unchanged.
+func ctxDeadlineErr(ctx context.Context) error {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return fmt.Errorf("timed out waiting for API response (10m limit exceeded); the project may be too large or the service may be degraded")
+	}
+	return ctx.Err()
+}
+
 // pollJob submits a pre-built multipart request to endpoint and polls until the async job
 // completes or the context is cancelled. onComplete is called with the raw result payload
 // when the job status is "completed"; the payload may be nil if the server returned none.
@@ -321,7 +332,7 @@ func (c *Client) pollJob(
 		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return ctxDeadlineErr(ctx)
 		default:
 		}
 
@@ -361,7 +372,7 @@ func (c *Client) pollJob(
 			c.logFn("[warn] poll attempt %d (%s): request error (will retry): %v", attempt+1, endpoint, err)
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return ctxDeadlineErr(ctx)
 			case <-time.After(10 * time.Second):
 			}
 			continue
@@ -372,7 +383,7 @@ func (c *Client) pollJob(
 			c.logFn("[warn] poll attempt %d (%s): error reading response (will retry): %v", attempt+1, endpoint, readErr)
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return ctxDeadlineErr(ctx)
 			case <-time.After(10 * time.Second):
 			}
 			continue
@@ -405,7 +416,7 @@ func (c *Client) pollJob(
 			c.logFn("[warn] poll attempt %d (%s): rate limited; retrying in %v", attempt+1, endpoint, retryAfter)
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return ctxDeadlineErr(ctx)
 			case <-time.After(retryAfter):
 			}
 			continue
@@ -420,7 +431,7 @@ func (c *Client) pollJob(
 				c.logFn("[warn] poll attempt %d (%s): server error %d (will retry)", attempt+1, endpoint, resp.StatusCode)
 				select {
 				case <-ctx.Done():
-					return ctx.Err()
+					return ctxDeadlineErr(ctx)
 				case <-time.After(10 * time.Second):
 				}
 				continue
@@ -469,14 +480,14 @@ func (c *Client) pollJob(
 			c.logFn("[debug] waiting %v before next poll", retryAfter)
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return ctxDeadlineErr(ctx)
 			case <-time.After(retryAfter):
 			}
 		default:
 			c.logFn("[debug] unknown job status: %s \xe2\x80\x94 retrying in 10s", jobResp.Status)
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return ctxDeadlineErr(ctx)
 			case <-time.After(10 * time.Second):
 			}
 		}
