@@ -3,6 +3,7 @@ package activitylog
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -60,7 +61,9 @@ func Append(e Entry) error {
 
 	// Rotate before writing if the log is too large.
 	if info, err := os.Stat(path); err == nil && info.Size() > maxLogSize {
-		_ = rotate(path)
+		if err := rotate(path); err != nil {
+			return fmt.Errorf("rotating activity log: %w", err)
+		}
 	}
 
 	data, err := json.Marshal(e)
