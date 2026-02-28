@@ -271,21 +271,31 @@ func buildDomains(dirFiles map[string][]string) []api.Domain {
 	return domains
 }
 
-// computeTopFiles picks the most-referenced key files across all domains.
+// computeTopFiles picks the top key files across all domains.
+// In local mode, domain co-occurrence always yields a count of 1 (each file belongs to
+// exactly one domain), so RelationshipCount is left at 0 to suppress meaningless output.
+// Files are ranked by a simple heuristic: well-known entry-point names first, then by
+// path length (shorter = closer to root), then alphabetically.
 func computeTopFiles(domains []api.Domain, n int) []api.CriticalFile {
-	counts := make(map[string]int)
+	seen := make(map[string]struct{})
+	var files []api.CriticalFile
 	for _, d := range domains {
 		for _, f := range d.KeyFiles {
-			counts[f]++
+			if _, ok := seen[f]; ok {
+				continue
+			}
+			seen[f] = struct{}{}
+			files = append(files, api.CriticalFile{Path: f, RelationshipCount: 0})
 		}
 	}
-	files := make([]api.CriticalFile, 0, len(counts))
-	for path, count := range counts {
-		files = append(files, api.CriticalFile{Path: path, RelationshipCount: count})
-	}
 	sort.Slice(files, func(i, j int) bool {
-		if files[i].RelationshipCount != files[j].RelationshipCount {
-			return files[i].RelationshipCount > files[j].RelationshipCount
+		pi, pj := entryPointPriority(files[i].Path), entryPointPriority(files[j].Path)
+		if pi != pj {
+			return pi > pj
+		}
+		li, lj := len(files[i].Path), len(files[j].Path)
+		if li != lj {
+			return li < lj
 		}
 		return files[i].Path < files[j].Path
 	})
@@ -293,4 +303,21 @@ func computeTopFiles(domains []api.Domain, n int) []api.CriticalFile {
 		files = files[:n]
 	}
 	return files
+}
+
+// entryPointPriority returns a higher score for well-known entry-point filenames.
+func entryPointPriority(path string) int {
+	base := filepath.Base(path)
+	name := strings.TrimSuffix(base, filepath.Ext(base))
+	switch strings.ToLower(name) {
+	case "main":
+		return 4
+	case "app", "application":
+		return 3
+	case "server", "index":
+		return 2
+	case "init", "__init__":
+		return 1
+	}
+	return 0
 }

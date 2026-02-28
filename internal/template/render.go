@@ -48,7 +48,7 @@ const contextBombTmpl = `# Uncompact Context — {{.ProjectName}}
 **Tech stack:** {{join .Graph.ExternalDeps ", "}}{{end}}
 {{if .Graph.CriticalFiles}}
 ## Critical Files
-{{range $i, $f := .Graph.CriticalFiles}}{{add1 $i}}. {{$f.Path}} — {{$f.RelationshipCount}} relationships
+{{range $i, $f := .Graph.CriticalFiles}}{{add1 $i}}. {{$f.Path}}{{if $f.RelationshipCount}} — {{$f.RelationshipCount}} relationships{{end}}
 {{end}}{{end}}
 ## Domain Map
 {{range .Graph.Domains}}
@@ -257,7 +257,12 @@ func truncateToTokenBudget(
 			sb.WriteString(header)
 			remaining -= headerTokens
 			for i, f := range graph.CriticalFiles {
-				line := fmt.Sprintf("%d. %s — %d relationships\n", i+1, f.Path, f.RelationshipCount)
+				var line string
+				if f.RelationshipCount > 0 {
+					line = fmt.Sprintf("%d. %s — %d relationships\n", i+1, f.Path, f.RelationshipCount)
+				} else {
+					line = fmt.Sprintf("%d. %s\n", i+1, f.Path)
+				}
 				lineTokens := CountTokens(line)
 				if lineTokens > remaining {
 					break
