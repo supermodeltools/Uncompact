@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -337,6 +338,58 @@ func TestSkipSymlinks(t *testing.T) {
 	}
 	if !names["normal.txt"] {
 		t.Error("normal.txt was unexpectedly absent from the zip archive")
+	}
+}
+
+// --- git-tracked dotfiles ---
+
+// TestGitTrackedDotfiles verifies that dotfiles explicitly committed to git
+// (e.g. .eslintrc.json, .prettierrc) are included in the zip, while untracked
+// dotfiles (e.g. .env) are still excluded.
+func TestGitTrackedDotfiles(t *testing.T) {
+	root := t.TempDir()
+
+	// Initialize a git repo.
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = root
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Skipf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	run("init")
+	run("config", "user.email", "test@example.com")
+	run("config", "user.name", "Test")
+
+	// Create config dotfiles, a secret dotfile, and a regular file.
+	makeFile(t, filepath.Join(root, ".eslintrc.json"), []byte(`{"semi": false}`))
+	makeFile(t, filepath.Join(root, ".prettierrc"), []byte(`{"tabWidth": 2}`))
+	makeFile(t, filepath.Join(root, ".env"), []byte("SECRET=value"))
+	makeFile(t, filepath.Join(root, "main.go"), []byte("package main"))
+
+	// Stage and commit the config dotfiles and main.go; leave .env untracked.
+	run("add", ".eslintrc.json", ".prettierrc", "main.go")
+	run("commit", "-m", "initial")
+
+	data, _, err := RepoZip(context.Background(), root)
+	if err != nil {
+		t.Fatalf("RepoZip: %v", err)
+	}
+
+	names := zipNames(t, data)
+
+	if !names[".eslintrc.json"] {
+		t.Error(".eslintrc.json (git-tracked dotfile) was unexpectedly excluded")
+	}
+	if !names[".prettierrc"] {
+		t.Error(".prettierrc (git-tracked dotfile) was unexpectedly excluded")
+	}
+	if names[".env"] {
+		t.Error(".env (untracked dotfile) was not excluded")
+	}
+	if !names["main.go"] {
+		t.Error("main.go was unexpectedly absent")
 	}
 }
 
