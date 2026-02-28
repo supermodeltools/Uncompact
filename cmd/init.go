@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/supermodeltools/uncompact/internal/detect"
+	"github.com/supermodeltools/uncompact/internal/fsutil"
 	"github.com/supermodeltools/uncompact/internal/hooks"
 )
 
@@ -63,7 +64,7 @@ func initHandler(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	claudeMDPath := filepath.Join(cwd, "CLAUDE.md")
-	claudeMDExists := fileExists(claudeMDPath)
+	claudeMDExists := fsutil.FileExists(claudeMDPath)
 
 	content := info.GenerateCLAUDEMD()
 
@@ -143,9 +144,3 @@ func initHandler(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// fileExists is a local helper (also defined in detect package; kept here to
-// avoid an import cycle if detect is ever refactored out of internal).
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
