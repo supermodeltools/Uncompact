@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -110,11 +109,10 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	}
 	defer store.Close()
 
-	// Prune on an isolated DB handle to avoid racing with store.Close().
-	var pruneWg sync.WaitGroup
-	pruneWg.Add(1)
+	// Prune on an isolated DB handle in the background (best-effort, fire-and-forget).
+	// No WaitGroup: prune must not block runWithCache — a hung open/prune should not
+	// delay the caller indefinitely.
 	go func(path string) {
-		defer pruneWg.Done()
 		pruneStore, err := cache.Open(path)
 		if err != nil {
 			logFn("[warn] cache prune: failed to open store: %v", err)
@@ -125,7 +123,6 @@ func runHandler(cmd *cobra.Command, args []string) error {
 			logFn("[warn] cache prune: %v", err)
 		}
 	}(dbPath)
-	defer pruneWg.Wait()
 
 	// Check cache
 	var graph *api.ProjectGraph
