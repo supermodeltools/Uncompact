@@ -197,7 +197,7 @@ func TestTruncate_DomainsDroppedWhenBudgetTight(t *testing.T) {
 	graph := testGraph(d1, d2)
 
 	const budget = 100
-	result, tokens, err := truncateToTokenBudget(graph, "TestProject", budget, 0, nil, nil, "")
+	result, tokens, err := truncateToTokenBudget(graph, "TestProject", budget, 0, nil, nil, "", false)
 	if err != nil {
 		t.Fatalf("truncateToTokenBudget error: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestTruncate_CriticalFilesBeforeDomainMap(t *testing.T) {
 		{Path: "main.go", RelationshipCount: 5},
 	}
 
-	result, tokens, err := truncateToTokenBudget(graph, "TestProject", 500, 0, nil, nil, "")
+	result, tokens, err := truncateToTokenBudget(graph, "TestProject", 500, 0, nil, nil, "", false)
 	if err != nil {
 		t.Fatalf("truncateToTokenBudget error: %v", err)
 	}
@@ -245,7 +245,7 @@ func TestTruncate_SessionSnapshotIncludedAtHighPriority(t *testing.T) {
 	graph := testGraph(padDomain("bigdomain", 60))
 
 	const budget = 200
-	result, tokens, err := truncateToTokenBudget(graph, "TestProject", budget, 0, nil, snap, "")
+	result, tokens, err := truncateToTokenBudget(graph, "TestProject", budget, 0, nil, snap, "", false)
 	if err != nil {
 		t.Fatalf("truncateToTokenBudget error: %v", err)
 	}
@@ -271,7 +271,7 @@ func TestTruncate_WorkingMemoryDroppedGracefully(t *testing.T) {
 	graph := testGraph(padDomain("core", 80))
 
 	const budget = 150
-	result, tokens, err := truncateToTokenBudget(graph, "TestProject", budget, 0, wm, nil, "")
+	result, tokens, err := truncateToTokenBudget(graph, "TestProject", budget, 0, wm, nil, "", false)
 	if err != nil {
 		t.Fatalf("truncateToTokenBudget error: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestTruncate_ExtremelySmallBudgetReturnsFallback(t *testing.T) {
 	graph := testGraph(testDomain("core", "Core domain"))
 
 	// Budget of 1 is smaller than any possible required header.
-	result, _, err := truncateToTokenBudget(graph, "TestProject", 1, 0, nil, nil, "")
+	result, _, err := truncateToTokenBudget(graph, "TestProject", 1, 0, nil, nil, "", false)
 	if err != nil {
 		t.Fatalf("truncateToTokenBudget error: %v", err)
 	}
@@ -308,7 +308,7 @@ func TestTruncate_DomainMapHeaderTokensAccounted(t *testing.T) {
 
 	// Test across a range of budgets so the edge case is reliably exercised.
 	for budget := 50; budget <= 300; budget += 5 {
-		_, tokens, err := truncateToTokenBudget(graph, "Proj", budget, 0, nil, nil, "")
+		_, tokens, err := truncateToTokenBudget(graph, "Proj", budget, 0, nil, nil, "", false)
 		if err != nil {
 			t.Fatalf("budget=%d: error: %v", budget, err)
 		}

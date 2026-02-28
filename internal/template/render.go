@@ -24,6 +24,9 @@ const contextBombTmpl = `# Uncompact Context — {{.ProjectName}}
 > ⚠️ {{.Graph.Stats.CircularDependencyCycles}} circular dependency {{if eq .Graph.Stats.CircularDependencyCycles 1}}cycle{{else}}cycles{{end}} detected{{range .Graph.Cycles}}
 > - {{join .Cycle " → "}}{{end}}
 {{- end}}
+{{- if and (not .LocalMode) (not .Graph.CircularDepsAnalyzed)}}
+> ⚠️ Circular dependency analysis unavailable
+{{- end}}
 
 ## Project Overview
 
@@ -149,7 +152,7 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 	} else {
 		// If over budget, truncate domains to fit
 		var err error
-		result, resultTokens, err = truncateToTokenBudget(graph, projectName, opts.MaxTokens, graph.Stats.CircularDependencyCycles, opts.WorkingMemory, opts.SessionSnapshot, opts.ClaudeMD)
+		result, resultTokens, err = truncateToTokenBudget(graph, projectName, opts.MaxTokens, graph.Stats.CircularDependencyCycles, opts.WorkingMemory, opts.SessionSnapshot, opts.ClaudeMD, opts.LocalMode)
 		if err != nil {
 			return "", 0, err
 		}
@@ -169,7 +172,7 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 			if tokens <= budget {
 				result, resultTokens = fullText, tokens
 			} else {
-				truncated, truncatedTokens, truncErr := truncateToTokenBudget(graph, projectName, budget, graph.Stats.CircularDependencyCycles, opts.WorkingMemory, opts.SessionSnapshot, opts.ClaudeMD)
+				truncated, truncatedTokens, truncErr := truncateToTokenBudget(graph, projectName, budget, graph.Stats.CircularDependencyCycles, opts.WorkingMemory, opts.SessionSnapshot, opts.ClaudeMD, opts.LocalMode)
 				if truncErr != nil {
 					return "", 0, truncErr
 				}
@@ -193,6 +196,7 @@ func truncateToTokenBudget(
 	wm *project.WorkingMemory,
 	snap *snapshot.SessionSnapshot,
 	claudeMD string,
+	localMode bool,
 ) (string, int, error) {
 
 	// Build a minimal required header
@@ -208,6 +212,8 @@ func truncateToTokenBudget(
 			hdr.WriteString(fmt.Sprintf("> - %s\n", strings.Join(c.Cycle, " → ")))
 		}
 		hdr.WriteString("\n")
+	} else if !localMode && !graph.CircularDepsAnalyzed {
+		hdr.WriteString("> ⚠️ Circular dependency analysis unavailable\n\n")
 	}
 	hdr.WriteString(fmt.Sprintf(
 		"**Language:** %s · **Files:** %d · **Functions:** %d",

@@ -192,16 +192,17 @@ type CriticalFile struct {
 
 // ProjectGraph is the internal model used by the cache and template.
 type ProjectGraph struct {
-	Name          string                   `json:"name"`
-	Language      string                   `json:"language"`
-	Framework     string                   `json:"framework,omitempty"`
-	Description   string                   `json:"description,omitempty"`
-	Domains       []Domain                 `json:"domains"`
-	ExternalDeps  []string                 `json:"external_deps,omitempty"`
-	CriticalFiles []CriticalFile           `json:"critical_files,omitempty"`
-	Stats         Stats                    `json:"stats"`
-	Cycles        []CircularDependencyCycle `json:"cycles,omitempty"`
-	UpdatedAt     time.Time                `json:"updated_at"`
+	Name                 string                    `json:"name"`
+	Language             string                    `json:"language"`
+	Framework            string                    `json:"framework,omitempty"`
+	Description          string                    `json:"description,omitempty"`
+	Domains              []Domain                  `json:"domains"`
+	ExternalDeps         []string                  `json:"external_deps,omitempty"`
+	CriticalFiles        []CriticalFile            `json:"critical_files,omitempty"`
+	Stats                Stats                     `json:"stats"`
+	Cycles               []CircularDependencyCycle `json:"cycles,omitempty"`
+	CircularDepsAnalyzed bool                      `json:"circular_deps_analyzed"`
+	UpdatedAt            time.Time                 `json:"updated_at"`
 }
 
 // Subdomain represents a named sub-area within a domain.
@@ -558,10 +559,13 @@ func (c *Client) GetGraphAndCircularDeps(ctx context.Context, projectName string
 	cr := <-circCh
 	if cr.err != nil {
 		c.logFn("[warn] circular dependency check failed: %v", cr.err)
-	} else if cr.circDeps != nil {
-		gr.graph.Stats.CircularDependencyCycles = len(cr.circDeps.Cycles)
-		gr.graph.Cycles = cr.circDeps.Cycles
-		c.logFn("[debug] circular dependency cycles found: %d", gr.graph.Stats.CircularDependencyCycles)
+	} else {
+		gr.graph.CircularDepsAnalyzed = true
+		if cr.circDeps != nil {
+			gr.graph.Stats.CircularDependencyCycles = len(cr.circDeps.Cycles)
+			gr.graph.Cycles = cr.circDeps.Cycles
+			c.logFn("[debug] circular dependency cycles found: %d", gr.graph.Stats.CircularDependencyCycles)
+		}
 	}
 
 	return gr.graph, nil
