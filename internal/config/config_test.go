@@ -232,42 +232,66 @@ func TestSave_FilePermissions(t *testing.T) {
 
 func TestEffectiveMode_ExplicitLocal(t *testing.T) {
 	cfg := &Config{Mode: ModeLocal}
-	if got := cfg.EffectiveMode(""); got != ModeLocal {
+	got, err := cfg.EffectiveMode("")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != ModeLocal {
 		t.Errorf("EffectiveMode() = %q, want %q", got, ModeLocal)
 	}
 }
 
 func TestEffectiveMode_ExplicitAPI(t *testing.T) {
 	cfg := &Config{Mode: ModeAPI, APIKey: "key"}
-	if got := cfg.EffectiveMode(""); got != ModeAPI {
+	got, err := cfg.EffectiveMode("")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != ModeAPI {
 		t.Errorf("EffectiveMode() = %q, want %q", got, ModeAPI)
 	}
 }
 
 func TestEffectiveMode_FlagOverridesConfigMode(t *testing.T) {
 	cfg := &Config{Mode: ModeLocal, APIKey: "key"}
-	if got := cfg.EffectiveMode(ModeAPI); got != ModeAPI {
+	got, err := cfg.EffectiveMode(ModeAPI)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != ModeAPI {
 		t.Errorf("EffectiveMode(%q) = %q, want %q", ModeAPI, got, ModeAPI)
 	}
 }
 
 func TestEffectiveMode_AutoDetect_NoAPIKey(t *testing.T) {
 	cfg := &Config{} // no APIKey, no Mode
-	if got := cfg.EffectiveMode(""); got != ModeLocal {
+	got, err := cfg.EffectiveMode("")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != ModeLocal {
 		t.Errorf("EffectiveMode() with no API key = %q, want %q", got, ModeLocal)
 	}
 }
 
 func TestEffectiveMode_AutoDetect_WithAPIKey(t *testing.T) {
 	cfg := &Config{APIKey: "some-key"} // no explicit Mode
-	if got := cfg.EffectiveMode(""); got != ModeAPI {
+	got, err := cfg.EffectiveMode("")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != ModeAPI {
 		t.Errorf("EffectiveMode() with API key = %q, want %q", got, ModeAPI)
 	}
 }
 
 func TestEffectiveMode_FlagNormalizedBeforeMatch(t *testing.T) {
 	cfg := &Config{}
-	if got := cfg.EffectiveMode("  LOCAL  "); got != ModeLocal {
+	got, err := cfg.EffectiveMode("  LOCAL  ")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != ModeLocal {
 		t.Errorf("EffectiveMode(\"  LOCAL  \") = %q, want %q", got, ModeLocal)
 	}
 }
