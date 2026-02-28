@@ -97,7 +97,7 @@ func GetWorkingMemory(ctx context.Context, rootDir string, logFn func(string, ..
 	if m := issueNumberRe.FindStringSubmatch(branch); m != nil {
 		if n, err := strconv.Atoi(m[1]); err == nil && n > 0 {
 			wm.IssueNumber = n
-			ghFetchIssue(ctx, wm, n, logFn)
+			ghFetchIssue(ctx, rootDir, wm, n, logFn)
 		}
 	}
 
@@ -148,8 +148,9 @@ func parseStatLines(s string, max int) []string {
 
 // ghFetchIssue populates IssueTitle and IssueBody from the GitHub CLI.
 // Failures are silently ignored. The command is cancelled if ctx is done.
-func ghFetchIssue(ctx context.Context, wm *WorkingMemory, issueNumber int, logFn func(string, ...interface{})) {
+func ghFetchIssue(ctx context.Context, rootDir string, wm *WorkingMemory, issueNumber int, logFn func(string, ...interface{})) {
 	cmd := exec.CommandContext(ctx, "gh", "issue", "view", fmt.Sprintf("%d", issueNumber), "--json", "title,body")
+	cmd.Dir = rootDir
 	out, err := cmd.Output()
 	if err != nil {
 		logFn("[debug] gh issue fetch failed (issue #%d): %v", issueNumber, err)

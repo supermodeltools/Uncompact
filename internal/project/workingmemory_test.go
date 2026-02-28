@@ -122,7 +122,7 @@ func TestGhFetchIssue_GhUnavailable(t *testing.T) {
 	wm := &WorkingMemory{}
 	var warned bool
 	logFn := func(msg string, args ...interface{}) { warned = true }
-	ghFetchIssue(context.Background(), wm, 42, logFn)
+	ghFetchIssue(context.Background(), dir, wm, 42, logFn)
 
 	// ghFetchIssue must silently ignore the failure.
 	if wm.IssueTitle != "" || wm.IssueBody != "" {
@@ -140,7 +140,7 @@ func TestGhFetchIssue_MalformedJSON(t *testing.T) {
 
 	wm := &WorkingMemory{}
 	logFn := func(msg string, args ...interface{}) {}
-	ghFetchIssue(context.Background(), wm, 1, logFn)
+	ghFetchIssue(context.Background(), t.TempDir(), wm, 1, logFn)
 
 	if wm.IssueTitle != "" || wm.IssueBody != "" {
 		t.Errorf("expected empty fields for malformed JSON; got title=%q body=%q",
@@ -159,7 +159,7 @@ func TestGhFetchIssue_TruncatesLongBody(t *testing.T) {
 		warnMsg = fmt.Sprintf(msg, args...)
 	}
 	wm := &WorkingMemory{}
-	ghFetchIssue(context.Background(), wm, 1, logFn)
+	ghFetchIssue(context.Background(), t.TempDir(), wm, 1, logFn)
 
 	if wm.IssueTitle != "issue-title" {
 		t.Errorf("IssueTitle = %q, want %q", wm.IssueTitle, "issue-title")
@@ -185,7 +185,7 @@ func TestGhFetchIssue_ShortBodyNoTruncation(t *testing.T) {
 	var warned bool
 	logFn := func(msg string, args ...interface{}) { warned = true }
 	wm := &WorkingMemory{}
-	ghFetchIssue(context.Background(), wm, 1, logFn)
+	ghFetchIssue(context.Background(), t.TempDir(), wm, 1, logFn)
 
 	if wm.IssueBody != shortBody {
 		t.Errorf("IssueBody = %q, want %q", wm.IssueBody, shortBody)
