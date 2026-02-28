@@ -163,6 +163,12 @@ func RepoZip(ctx context.Context, root string) ([]byte, SkipReport, error) {
 	gitFiles := buildGitFileSet(ctx, root)
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		if err != nil {
 			return nil // skip unreadable files
 		}
