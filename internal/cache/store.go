@@ -252,13 +252,19 @@ func (s *Store) Prune() error {
 
 // ClearProject removes all cached data for a project.
 func (s *Store) ClearProject(projectHash string) error {
-	_, err := s.db.Exec(`DELETE FROM graph_cache WHERE project_hash = ?`, projectHash)
+	if _, err := s.db.Exec(`DELETE FROM graph_cache WHERE project_hash = ?`, projectHash); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(`DELETE FROM injection_log WHERE project_hash = ?`, projectHash)
 	return err
 }
 
 // ClearAll removes all cached data.
 func (s *Store) ClearAll() error {
-	_, err := s.db.Exec(`DELETE FROM graph_cache`)
+	if _, err := s.db.Exec(`DELETE FROM graph_cache`); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(`DELETE FROM injection_log`)
 	return err
 }
 
