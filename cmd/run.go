@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -258,11 +259,15 @@ func runHandler(cmd *cobra.Command, args []string) error {
 }
 
 // runLocalMode generates a context bomb from local repository analysis only,
-// requiring no API key. It prints a one-time informational note to stderr.
+// requiring no API key. It prints a one-time informational note to stderr the
+// first time it runs, then suppresses it on subsequent invocations.
 // On cache hit the local graph build is skipped entirely; on miss the result
 // is written back to cache so the next invocation is instant.
 func runLocalMode(logFn func(string, ...interface{})) error {
-	fmt.Fprintln(os.Stderr, "Running in local mode. Set SUPERMODEL_API_KEY and run 'uncompact auth login' to enable AI-powered features.")
+	if localModeNoticeNeeded() {
+		fmt.Fprintln(os.Stderr, "Running in local mode. Set SUPERMODEL_API_KEY and run 'uncompact auth login' to enable AI-powered features.")
+		markLocalModeNoticeSeen()
+	}
 
 	gitCtx, gitCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer gitCancel()
@@ -431,6 +436,34 @@ func fetchGraphWithCircularDeps(
 // silentExit returns nil (success) so we never block Claude Code sessions.
 func silentExit() error {
 	return nil
+}
+
+// localModeNoticeNeeded returns true if the one-time local-mode notice has not
+// yet been shown to the user (i.e. the sentinel file does not exist).
+func localModeNoticeNeeded() bool {
+	dir, err := config.ConfigDir()
+	if err != nil {
+		return true
+	}
+	_, err = os.Stat(filepath.Join(dir, "local-mode-notice-shown"))
+	return os.IsNotExist(err)
+}
+
+// markLocalModeNoticeSeen creates the sentinel file so the one-time local-mode
+// notice is suppressed on subsequent invocations.
+func markLocalModeNoticeSeen() {
+	dir, err := config.ConfigDir()
+	if err != nil {
+		return
+	}
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return
+	}
+	f, err := os.OpenFile(filepath.Join(dir, "local-mode-notice-shown"), os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return
+	}
+	f.Close()
 }
 
 // printFallback emits a minimal static context bomb when the full one isn't available.
