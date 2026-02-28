@@ -43,11 +43,16 @@ func TestCountTokens_CodeSnippet(t *testing.T) {
 }
 
 func TestCountTokens_NonASCII(t *testing.T) {
-	// Japanese text — rune count dominates character estimate
+	// Japanese text: 7 runes × 3 bytes each = 21 bytes → 21/4 = 5 char estimate.
+	// Using byte length instead of rune count avoids severe undercounting for CJK text.
 	text := "こんにちは世界"
 	got := CountTokens(text)
-	if got < 1 {
-		t.Errorf("CountTokens(non-ASCII) = %d, want >= 1", got)
+	minExpected := len([]rune(text)) / 4
+	if minExpected < 1 {
+		minExpected = 1
+	}
+	if got < minExpected {
+		t.Errorf("CountTokens(non-ASCII) = %d, want >= %d", got, minExpected)
 	}
 }
 

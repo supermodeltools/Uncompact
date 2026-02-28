@@ -7,7 +7,6 @@ import (
 	gotmpl "text/template"
 	"time"
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/supermodeltools/uncompact/internal/api"
 	"github.com/supermodeltools/uncompact/internal/project"
@@ -423,8 +422,8 @@ func CountTokens(text string) int {
 			inWord = true
 		}
 	}
-	// Approximate: 1 token ≈ 0.75 words, or len/4 chars
-	charEstimate := utf8.RuneCountInString(text) / 4
+	// Approximate: 1 token ≈ 0.75 words, or len/4 bytes
+	charEstimate := len(text) / 4
 	wordEstimate := words * 100 / 75
 	if charEstimate > wordEstimate {
 		return charEstimate
