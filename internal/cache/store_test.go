@@ -322,6 +322,7 @@ func TestGetStats(t *testing.T) {
 		{"hash-1", 2000, "api"},
 		{"hash-1", 500, "cache"},
 		{"hash-1", 300, "stale_cache"},
+		{"hash-1", 800, "local"},
 	}
 	for _, e := range entries {
 		if err := s.LogInjection(e.hash, "project-1", e.tokens, e.source, nil); err != nil {
@@ -333,8 +334,8 @@ func TestGetStats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetStats: %v", err)
 	}
-	if stats.TotalInjections != 4 {
-		t.Errorf("TotalInjections = %d, want 4", stats.TotalInjections)
+	if stats.TotalInjections != 5 {
+		t.Errorf("TotalInjections = %d, want 5", stats.TotalInjections)
 	}
 	if stats.APIFetches != 2 {
 		t.Errorf("APIFetches = %d, want 2", stats.APIFetches)
@@ -345,10 +346,13 @@ func TestGetStats(t *testing.T) {
 	if stats.StaleCacheHits != 1 {
 		t.Errorf("StaleCacheHits = %d, want 1", stats.StaleCacheHits)
 	}
-	if stats.TotalTokens != 3800 {
-		t.Errorf("TotalTokens = %d, want 3800", stats.TotalTokens)
+	if stats.LocalBuilds != 1 {
+		t.Errorf("LocalBuilds = %d, want 1", stats.LocalBuilds)
 	}
-	wantAvg := float64(3800) / 4.0
+	if stats.TotalTokens != 4600 {
+		t.Errorf("TotalTokens = %d, want 4600", stats.TotalTokens)
+	}
+	wantAvg := float64(4600) / 5.0
 	if stats.AvgTokens != wantAvg {
 		t.Errorf("AvgTokens = %v, want %v", stats.AvgTokens, wantAvg)
 	}

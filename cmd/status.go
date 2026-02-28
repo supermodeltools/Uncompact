@@ -205,6 +205,7 @@ func statsHandler(cmd *cobra.Command, args []string) error {
 	fmt.Printf("API fetches:       %d\n", st.APIFetches)
 	fmt.Printf("Cache hits:        %d\n", st.CacheHits)
 	fmt.Printf("Stale cache hits:  %d\n", st.StaleCacheHits)
+	fmt.Printf("Local builds:      %d\n", st.LocalBuilds)
 	if st.TotalInjections > 0 {
 		hitRate := float64(st.CacheHits) / float64(st.TotalInjections) * 100
 		fmt.Printf("Cache hit rate:    %.1f%%\n", hitRate)
