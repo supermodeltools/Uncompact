@@ -83,6 +83,8 @@ func initHandler(cmd *cobra.Command, args []string) error {
 					fmt.Println(content)
 					fmt.Println()
 				}
+			} else if err := scanner.Err(); err != nil {
+				return fmt.Errorf("reading user input: %w", err)
 			}
 		}
 	} else {
@@ -102,6 +104,8 @@ func initHandler(cmd *cobra.Command, args []string) error {
 						fmt.Println("Aborted.")
 						return nil
 					}
+				} else if err := scanner.Err(); err != nil {
+					return fmt.Errorf("reading user input: %w", err)
 				}
 			}
 			if err := os.WriteFile(claudeMDPath, []byte(content), 0644); err != nil {
