@@ -14,6 +14,14 @@ import (
 	"github.com/supermodeltools/uncompact/internal/snapshot"
 )
 
+var rendererTmpl = gotmpl.Must(
+	gotmpl.New("context_bomb").Funcs(gotmpl.FuncMap{
+		"join":         strings.Join,
+		"languageList": func(langs []string) string { return strings.Join(langs, ", ") },
+		"add1":         func(i int) int { return i + 1 },
+	}).Parse(contextBombTmpl),
+)
+
 const contextBombTmpl = `# Uncompact Context — {{.ProjectName}}
 {{- if .SessionSnapshot}}
 {{.SessionSnapshot.Content}}
@@ -124,22 +132,9 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 		LocalMode:       opts.LocalMode,
 	}
 
-	funcMap := gotmpl.FuncMap{
-		"join": strings.Join,
-		"languageList": func(langs []string) string {
-			return strings.Join(langs, ", ")
-		},
-		"add1": func(i int) int { return i + 1 },
-	}
-
-	tmpl, err := gotmpl.New("context_bomb").Funcs(funcMap).Parse(contextBombTmpl)
-	if err != nil {
-		return "", 0, fmt.Errorf("parsing template: %w", err)
-	}
-
 	// First render the full output
 	var full bytes.Buffer
-	if err := tmpl.Execute(&full, data); err != nil {
+	if err := rendererTmpl.Execute(&full, data); err != nil {
 		return "", 0, fmt.Errorf("rendering template: %w", err)
 	}
 
