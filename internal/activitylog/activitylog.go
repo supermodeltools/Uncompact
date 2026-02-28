@@ -79,6 +79,7 @@ func Append(e Entry) error {
 }
 
 // rotate truncates the log to the last rotateKeep bytes, aligned to a line boundary.
+// It uses an atomic temp-file + rename pattern so a mid-write crash cannot corrupt the log.
 func rotate(path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -91,7 +92,11 @@ func rotate(path string) error {
 	if idx := bytes.IndexByte(data[offset:], '\n'); idx >= 0 {
 		offset += idx + 1
 	}
-	return os.WriteFile(path, data[offset:], 0600)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data[offset:], 0600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // ReadAll reads all entries from the activity log.
