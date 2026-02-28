@@ -44,6 +44,20 @@ func Append(e Entry) error {
 		return err
 	}
 
+	// Acquire a cross-process exclusive lock that covers the full
+	// stat→rotate→append sequence, preventing TOCTOU data loss when
+	// multiple processes (e.g. uncompact run + uncompact pregen) write
+	// concurrently. A separate lock file avoids interfering with O_APPEND.
+	lf, err := os.OpenFile(path+".lock", os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	defer lf.Close()
+	if err := lockFile(lf); err != nil {
+		return err
+	}
+	defer unlockFile(lf)
+
 	// Rotate before writing if the log is too large.
 	if info, err := os.Stat(path); err == nil && info.Size() > maxLogSize {
 		_ = rotate(path)
