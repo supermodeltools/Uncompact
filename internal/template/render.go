@@ -254,23 +254,28 @@ func truncateToTokenBudget(
 		}
 	}
 
-	var domainSections []string
-	for _, d := range graph.Domains {
-		section := buildDomainSection(d)
-		sectionTokens := CountTokens(section)
-		if sectionTokens <= remaining {
-			domainSections = append(domainSections, section)
-			remaining -= sectionTokens
+	header := "\n\n## Domain Map\n"
+	headerTokens := CountTokens(header)
+	if headerTokens <= remaining {
+		sectionBudget := remaining - headerTokens
+		var domainSections []string
+		for _, d := range graph.Domains {
+			section := buildDomainSection(d)
+			sectionTokens := CountTokens(section)
+			if sectionTokens <= sectionBudget {
+				domainSections = append(domainSections, section)
+				sectionBudget -= sectionTokens
+			}
+			if sectionBudget < 50 {
+				break
+			}
 		}
-		if remaining < 50 {
-			break
-		}
-	}
-
-	if len(domainSections) > 0 {
-		sb.WriteString("\n\n## Domain Map\n")
-		for _, s := range domainSections {
-			sb.WriteString(s)
+		if len(domainSections) > 0 {
+			sb.WriteString(header)
+			remaining = sectionBudget
+			for _, s := range domainSections {
+				sb.WriteString(s)
+			}
 		}
 	}
 
