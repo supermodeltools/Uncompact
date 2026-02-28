@@ -3,6 +3,7 @@ package zip
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -75,8 +76,8 @@ const maxTotalSize = 10 * 1024 * 1024 // 10MB total
 // .gitignore). Paths are slash-separated and relative to root.
 // Returns nil if git is not available or root is not a git repository,
 // in which case the caller falls back to the hardcoded allow/skip lists.
-func buildGitFileSet(root string) map[string]bool {
-	cmd := exec.Command("git", "ls-files", "--cached", "--others", "--exclude-standard")
+func buildGitFileSet(ctx context.Context, root string) map[string]bool {
+	cmd := exec.CommandContext(ctx, "git", "ls-files", "--cached", "--others", "--exclude-standard")
 	cmd.Dir = root
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -148,7 +149,7 @@ func addFileToZip(w *zip.Writer, path, rel string) (int64, error) {
 
 // RepoZip creates an in-memory ZIP archive of the project root.
 // The second return value describes any files that were excluded from the archive.
-func RepoZip(root string) ([]byte, SkipReport, error) {
+func RepoZip(ctx context.Context, root string) ([]byte, SkipReport, error) {
 	var buf bytes.Buffer
 	w := zip.NewWriter(&buf)
 
@@ -159,7 +160,7 @@ func RepoZip(root string) ([]byte, SkipReport, error) {
 	// Build the set of git-tracked/unignored files so we can respect .gitignore.
 	// gitFiles is nil when git is unavailable; in that case we fall back to the
 	// hardcoded skip lists below.
-	gitFiles := buildGitFileSet(root)
+	gitFiles := buildGitFileSet(ctx, root)
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {

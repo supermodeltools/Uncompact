@@ -162,7 +162,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
 
-		zipData, skipReport, err := zip.RepoZip(proj.RootDir)
+		zipData, skipReport, err := zip.RepoZip(ctx, proj.RootDir)
 		if err != nil {
 			logFn("[warn] zip error: %v", err)
 			if !stale || graph == nil {
@@ -363,7 +363,7 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	zipData, skipReport, err := zip.RepoZip(proj.RootDir)
+	zipData, skipReport, err := zip.RepoZip(ctx, proj.RootDir)
 	if err != nil {
 		logFn("[warn] zip error: %v", err)
 		if fallback {
