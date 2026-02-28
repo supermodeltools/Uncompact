@@ -1,6 +1,11 @@
 package cmd
 
-import "testing"
+import (
+	"fmt"
+	"os"
+	"strings"
+	"testing"
+)
 
 func TestLooksLikeFilePath_Positive(t *testing.T) {
 	cases := []struct {
@@ -54,5 +59,119 @@ func TestLooksLikeFilePath_Negative(t *testing.T) {
 				t.Errorf("looksLikeFilePath(%q) = true, want false", tc.input)
 			}
 		})
+	}
+}
+
+// extractMessageText tests
+
+func TestExtractMessageText_PlainString(t *testing.T) {
+	got := extractMessageText("hello world")
+	if got != "hello world" {
+		t.Errorf("extractMessageText(%q) = %q, want %q", "hello world", got, "hello world")
+	}
+}
+
+func TestExtractMessageText_ContentBlocksJoined(t *testing.T) {
+	content := []interface{}{
+		map[string]interface{}{"type": "text", "text": "hello"},
+		map[string]interface{}{"type": "text", "text": "world"},
+	}
+	got := extractMessageText(content)
+	want := "hello world"
+	if got != want {
+		t.Errorf("extractMessageText() = %q, want %q", got, want)
+	}
+}
+
+func TestExtractMessageText_NonTextBlocksSkipped(t *testing.T) {
+	content := []interface{}{
+		map[string]interface{}{"type": "tool_use", "input": map[string]interface{}{"cmd": "ls"}},
+		map[string]interface{}{"type": "text", "text": "hello"},
+	}
+	got := extractMessageText(content)
+	want := "hello"
+	if got != want {
+		t.Errorf("extractMessageText() = %q, want %q", got, want)
+	}
+}
+
+// buildSnapshotMarkdown tests
+
+func TestBuildSnapshotMarkdown_WithData(t *testing.T) {
+	messages := []string{"first message", "second message"}
+	files := []string{"cmd/precompact.go", "internal/snapshot/write.go"}
+	got := buildSnapshotMarkdown(messages, files)
+
+	for _, want := range []string{"**Recent context:**", "**Files in focus:**", "first message", "cmd/precompact.go"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("expected %q in output:\n%s", want, got)
+		}
+	}
+}
+
+func TestBuildSnapshotMarkdown_EmptyFallback(t *testing.T) {
+	got := buildSnapshotMarkdown(nil, nil)
+	want := "*(Session state captured before compaction)*"
+	if !strings.Contains(got, want) {
+		t.Errorf("buildSnapshotMarkdown(nil, nil) = %q, expected to contain %q", got, want)
+	}
+}
+
+// buildSnapshotContent tests
+
+func writeJSONLFile(t *testing.T, lines []string) string {
+	t.Helper()
+	f, err := os.CreateTemp("", "transcript*.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Remove(f.Name()) })
+	for _, line := range lines {
+		fmt.Fprintln(f, line)
+	}
+	f.Close()
+	return f.Name()
+}
+
+func TestBuildSnapshotContent_Last5UserMessages(t *testing.T) {
+	var lines []string
+	for i := 1; i <= 8; i++ {
+		lines = append(lines, fmt.Sprintf(`{"role":"user","content":"message %d"}`, i))
+	}
+	path := writeJSONLFile(t, lines)
+
+	noop := func(string, ...interface{}) {}
+	got := buildSnapshotContent(path, noop)
+
+	// Last 5 messages (4–8) must be present
+	for i := 4; i <= 8; i++ {
+		want := fmt.Sprintf("message %d", i)
+		if !strings.Contains(got, want) {
+			t.Errorf("expected %q in output:\n%s", want, got)
+		}
+	}
+	// First 3 messages must be absent
+	for i := 1; i <= 3; i++ {
+		notWant := fmt.Sprintf("message %d", i)
+		if strings.Contains(got, notWant) {
+			t.Errorf("unexpected %q in output:\n%s", notWant, got)
+		}
+	}
+}
+
+func TestBuildSnapshotContent_DeduplicatesFilePaths(t *testing.T) {
+	lines := []string{
+		`{"role":"user","content":"look at cmd/foo.go"}`,
+		`{"role":"user","content":"also cmd/bar.go"}`,
+		`{"role":"user","content":"back to cmd/foo.go again"}`,
+	}
+	path := writeJSONLFile(t, lines)
+
+	noop := func(string, ...interface{}) {}
+	got := buildSnapshotContent(path, noop)
+
+	count := strings.Count(got, "cmd/foo.go")
+	if count != 1 {
+		t.Errorf("expected cmd/foo.go to appear once, got %d occurrences in:\n%s", count, got)
 	}
 }
