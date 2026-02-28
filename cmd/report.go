@@ -79,10 +79,24 @@ func reportHandler(cmd *cobra.Command, args []string) error {
 		filterProject = filepath.Clean(reportProject)
 	}
 
-	// Filter entries by window and optional project.
+	filtered := filterEntries(entries, since, filterProject)
+	rpt := buildReportData(filtered, windowLabel)
+
+	if reportJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(rpt)
+	}
+
+	return printReport(rpt)
+}
+
+// filterEntries returns the subset of entries within the time window and matching project.
+// A zero since means no time filter (all-time mode). filterProject must already be filepath.Clean'd.
+func filterEntries(entries []activitylog.Entry, since time.Time, filterProject string) []activitylog.Entry {
 	var filtered []activitylog.Entry
 	for _, e := range entries {
-		if !reportAllTime && e.Timestamp.Before(since) {
+		if !since.IsZero() && e.Timestamp.Before(since) {
 			continue
 		}
 		if filterProject != "" && filepath.Clean(e.Project) != filterProject {
@@ -90,8 +104,11 @@ func reportHandler(cmd *cobra.Command, args []string) error {
 		}
 		filtered = append(filtered, e)
 	}
+	return filtered
+}
 
-	// Aggregate stats.
+// buildReportData aggregates a slice of filtered entries into a reportData struct.
+func buildReportData(filtered []activitylog.Entry, windowLabel string) reportData {
 	projectCounts := make(map[string]int)
 	totalBytes := 0
 	snapshots := 0
@@ -110,7 +127,10 @@ func reportHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	// Build top-projects list sorted by count desc, then path asc.
-	type kv struct{ k string; v int }
+	type kv struct {
+		k string
+		v int
+	}
 	kvs := make([]kv, 0, len(projectCounts))
 	for k, v := range projectCounts {
 		kvs = append(kvs, kv{k, v})
@@ -143,7 +163,7 @@ func reportHandler(cmd *cobra.Command, args []string) error {
 		lastPath = lastEntry.Project
 	}
 
-	rpt := reportData{
+	return reportData{
 		Window:                  windowLabel,
 		Compactions:             len(filtered),
 		ContextBombsDelivered:   len(filtered),
@@ -155,14 +175,6 @@ func reportHandler(cmd *cobra.Command, args []string) error {
 		LastCompaction:          lastTime,
 		LastCompactionProject:   lastPath,
 	}
-
-	if reportJSON {
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		return enc.Encode(rpt)
-	}
-
-	return printReport(rpt)
 }
 
 func printReport(r reportData) error {
