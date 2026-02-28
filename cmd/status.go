@@ -260,6 +260,8 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 	}
 	defer store.Close()
 
+	claudeMD := local.ReadClaudeMD(proj.RootDir)
+
 	// Try cache first
 	cachedGraph, fresh, _, fetchedAt, err := store.Get(proj.Hash)
 	if err != nil {
@@ -277,6 +279,7 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 			Stale:         !fresh,
 			StaleAt:       fetchedAt,
 			WorkingMemory: wm,
+			ClaudeMD:      claudeMD,
 		}
 		output, tokens, err := tmpl.Render(cachedGraph, proj.Name, opts)
 		if err != nil {
@@ -313,6 +316,7 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 	opts := tmpl.RenderOptions{
 		MaxTokens:     maxTokens,
 		WorkingMemory: wm,
+		ClaudeMD:      claudeMD,
 	}
 	output, tokens, err := tmpl.Render(graph, proj.Name, opts)
 	if err != nil {
