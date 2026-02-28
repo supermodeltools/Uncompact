@@ -231,7 +231,6 @@ func readDescription(rootDir string) string {
 				return line
 			}
 		}
-		break
 	}
 	return ""
 }
