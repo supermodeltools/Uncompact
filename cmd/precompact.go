@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -97,18 +98,19 @@ func buildSnapshotContent(transcriptPath string, logFn func(string, ...interface
 		return minimalSnapshot()
 	}
 
-	data, err := os.ReadFile(transcriptPath)
+	f, err := os.Open(transcriptPath)
 	if err != nil {
 		logFn("[warn] pre-compact: reading transcript %s: %v", transcriptPath, err)
 		return minimalSnapshot()
 	}
+	defer f.Close()
 
 	var userMessages []string
 	var filesInFocus []string
 
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
 		}
@@ -135,6 +137,9 @@ func buildSnapshotContent(transcriptPath string, logFn func(string, ...interface
 				filesInFocus = append(filesInFocus, word)
 			}
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		logFn("[warn] pre-compact: reading transcript: %v", err)
 	}
 
 	// Keep the 5 most recent user messages for context
