@@ -41,5 +41,9 @@ func writeDisplayCache(content string) error {
 		return err
 	}
 	tmp.Close()
-	return os.Rename(tmp.Name(), cachePath)
+	if err := os.Rename(tmp.Name(), cachePath); err != nil {
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	return nil
 }
