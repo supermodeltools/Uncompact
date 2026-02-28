@@ -22,6 +22,7 @@ func init() {
 }
 
 func showCacheHandler(cmd *cobra.Command, args []string) error {
+	logFn := makeLogger()
 	cachePath := displayCachePath()
 
 	// Atomically claim the cache file via rename so concurrent invocations
@@ -35,7 +36,9 @@ func showCacheHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	data, err := os.ReadFile(tmpPath)
-	os.Remove(tmpPath) // Clean up the temp file regardless of read outcome.
+	if removeErr := os.Remove(tmpPath); removeErr != nil {
+		logFn("[debug] failed to remove temp file %s: %v", tmpPath, removeErr)
+	}
 	if err != nil {
 		return nil // Read error — silent exit to avoid blocking Claude Code.
 	}
