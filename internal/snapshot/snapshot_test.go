@@ -77,6 +77,28 @@ func TestReadWithTTL_TruncatedHeader(t *testing.T) {
 	}
 }
 
+func TestReadWithTTL_MalformedTimestamp(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write a file with a structurally valid header but an invalid timestamp value.
+	malformed := headerPrefix + "not-a-timestamp" + headerSuffix + "\n## Some content"
+	p := Path(dir)
+	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(p, []byte(malformed), 0600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	got, err := ReadWithTTL(dir, time.Hour)
+	if err != nil {
+		t.Fatalf("ReadWithTTL: %v", err)
+	}
+	if got != nil {
+		t.Errorf("expected nil for malformed timestamp, got %+v", got)
+	}
+}
+
 func TestReadWithTTL_ZeroTTL_SkipsExpiry(t *testing.T) {
 	dir := t.TempDir()
 
