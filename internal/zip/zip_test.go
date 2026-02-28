@@ -307,6 +307,39 @@ func TestRepoZip_ContextCancellation(t *testing.T) {
 	}
 }
 
+// --- symlink exclusion ---
+
+func TestSkipSymlinks(t *testing.T) {
+	root := t.TempDir()
+	external := t.TempDir()
+
+	// Create a file outside the repo root with sentinel content.
+	externalFile := filepath.Join(external, "secret.txt")
+	makeFile(t, externalFile, []byte("sentinel content outside root"))
+
+	// Create a regular file inside the root to confirm non-symlink files are included.
+	makeFile(t, filepath.Join(root, "normal.txt"), []byte("normal content"))
+
+	// Create a symlink inside the root pointing to the external file.
+	symlinkPath := filepath.Join(root, "link.txt")
+	if err := os.Symlink(externalFile, symlinkPath); err != nil {
+		t.Skipf("symlinks not supported: %v", err)
+	}
+
+	data, _, err := RepoZip(context.Background(), root)
+	if err != nil {
+		t.Fatalf("RepoZip: %v", err)
+	}
+
+	names := zipNames(t, data)
+	if names["link.txt"] {
+		t.Error("symlink was included in the zip archive; expected it to be skipped")
+	}
+	if !names["normal.txt"] {
+		t.Error("normal.txt was unexpectedly absent from the zip archive")
+	}
+}
+
 // --- git ls-files fallback ---
 
 func TestGitFallback_NonGitDir(t *testing.T) {
