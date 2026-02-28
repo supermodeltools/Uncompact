@@ -152,6 +152,7 @@ func ghFetchIssue(ctx context.Context, wm *WorkingMemory, issueNumber int, logFn
 	cmd := exec.CommandContext(ctx, "gh", "issue", "view", fmt.Sprintf("%d", issueNumber), "--json", "title,body")
 	out, err := cmd.Output()
 	if err != nil {
+		logFn("[debug] gh issue fetch failed (issue #%d): %v", issueNumber, err)
 		return
 	}
 	var result struct {
@@ -159,6 +160,7 @@ func ghFetchIssue(ctx context.Context, wm *WorkingMemory, issueNumber int, logFn
 		Body  string `json:"body"`
 	}
 	if err := json.Unmarshal(out, &result); err != nil {
+		logFn("[debug] gh issue fetch: failed to parse response: %v", err)
 		return
 	}
 	wm.IssueTitle = result.Title
