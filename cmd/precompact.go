@@ -128,18 +128,13 @@ func buildSnapshotContent(transcriptPath string, logFn func(string, ...interface
 			userMessages = append(userMessages, text)
 		}
 
-		// Extract file paths from any message (stop scanning words once we have 10,
-		// but always continue iterating lines so userMessages is fully collected).
-		if len(filesInFocus) < 10 {
-			for _, word := range strings.Fields(text) {
-				word = strings.Trim(word, "`,\"'()[]")
-				if looksLikeFilePath(word) && !seenFiles[word] {
-					seenFiles[word] = true
-					filesInFocus = append(filesInFocus, word)
-					if len(filesInFocus) >= 10 {
-						break
-					}
-				}
+		// Extract file paths from any message, accumulating all unique paths
+		// so we can keep the most recent ones after the full scan.
+		for _, word := range strings.Fields(text) {
+			word = strings.Trim(word, "`,\"'()[]")
+			if looksLikeFilePath(word) && !seenFiles[word] {
+				seenFiles[word] = true
+				filesInFocus = append(filesInFocus, word)
 			}
 		}
 	}
@@ -147,6 +142,11 @@ func buildSnapshotContent(transcriptPath string, logFn func(string, ...interface
 	// Keep the 5 most recent user messages for context
 	if len(userMessages) > 5 {
 		userMessages = userMessages[len(userMessages)-5:]
+	}
+
+	// Keep the 10 most recent file paths (mirrors the userMessages strategy above)
+	if len(filesInFocus) > 10 {
+		filesInFocus = filesInFocus[len(filesInFocus)-10:]
 	}
 
 	return buildSnapshotMarkdown(userMessages, filesInFocus)
