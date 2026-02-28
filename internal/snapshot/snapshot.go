@@ -69,9 +69,12 @@ func ReadWithTTL(projectRoot string, ttl time.Duration) (*SessionSnapshot, error
 			return nil, nil
 		}
 		tsStr := content[len(headerPrefix):end]
-		if t, parseErr := time.Parse(time.RFC3339, tsStr); parseErr == nil {
-			timestamp = t
+		t, parseErr := time.Parse(time.RFC3339, tsStr)
+		if parseErr != nil {
+			// Header present but timestamp is malformed — treat as corrupt/expired.
+			return nil, nil
 		}
+		timestamp = t
 		// Strip header line
 		if nl := strings.Index(content, "\n"); nl >= 0 {
 			content = content[nl+1:]
