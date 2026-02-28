@@ -292,7 +292,7 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	zipData, skipReport, err := zip.RepoZip(proj.RootDir)
+	zipData, skipReport, err := zip.RepoZip(ctx, proj.RootDir)
 	if err != nil {
 		return fmt.Errorf("zip error: %w", err)
 	}

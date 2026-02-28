@@ -120,7 +120,7 @@ func pregenHandler(cmd *cobra.Command, args []string) error {
 
 	logFn("[debug] fetching project graph from Supermodel API...")
 
-	zipData, skipReport, err := zip.RepoZip(proj.RootDir)
+	zipData, skipReport, err := zip.RepoZip(ctx, proj.RootDir)
 	if err != nil {
 		logFn("[warn] zip error: %v", err)
 		return nil
