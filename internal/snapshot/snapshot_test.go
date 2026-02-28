@@ -1,0 +1,159 @@
+package snapshot
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func TestWriteRead_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+
+	snap := &SessionSnapshot{
+		Timestamp: time.Now().UTC().Truncate(time.Second),
+		Content:   "## Session State\n\nSome content here.",
+	}
+
+	if err := Write(dir, snap); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	got, err := ReadWithTTL(dir, time.Hour)
+	if err != nil {
+		t.Fatalf("ReadWithTTL: %v", err)
+	}
+	if got == nil {
+		t.Fatal("ReadWithTTL returned nil, expected snapshot")
+	}
+	if got.Content != snap.Content {
+		t.Errorf("Content mismatch: got %q, want %q", got.Content, snap.Content)
+	}
+	if !got.Timestamp.Equal(snap.Timestamp) {
+		t.Errorf("Timestamp mismatch: got %v, want %v", got.Timestamp, snap.Timestamp)
+	}
+}
+
+func TestReadWithTTL_Expired(t *testing.T) {
+	dir := t.TempDir()
+
+	snap := &SessionSnapshot{
+		Timestamp: time.Now().UTC().Add(-2 * time.Hour),
+		Content:   "old content",
+	}
+
+	if err := Write(dir, snap); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	got, err := ReadWithTTL(dir, time.Hour)
+	if err != nil {
+		t.Fatalf("ReadWithTTL: %v", err)
+	}
+	if got != nil {
+		t.Errorf("expected nil for expired snapshot, got %+v", got)
+	}
+}
+
+func TestReadWithTTL_TruncatedHeader(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write a file with a truncated header: prefix present but suffix missing.
+	truncated := headerPrefix + "2024-01-01T00:00:00Z\n## Some content"
+	p := Path(dir)
+	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(p, []byte(truncated), 0600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	got, err := ReadWithTTL(dir, time.Hour)
+	if err != nil {
+		t.Fatalf("ReadWithTTL: %v", err)
+	}
+	if got != nil {
+		t.Errorf("expected nil for truncated header, got %+v", got)
+	}
+}
+
+func TestReadWithTTL_ZeroTTL_SkipsExpiry(t *testing.T) {
+	dir := t.TempDir()
+
+	snap := &SessionSnapshot{
+		Timestamp: time.Now().UTC().Add(-100 * time.Hour),
+		Content:   "very old content",
+	}
+
+	if err := Write(dir, snap); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	// Zero TTL should skip expiry check.
+	got, err := ReadWithTTL(dir, 0)
+	if err != nil {
+		t.Fatalf("ReadWithTTL: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected snapshot with zero TTL, got nil")
+	}
+	if got.Content != snap.Content {
+		t.Errorf("Content mismatch: got %q, want %q", got.Content, snap.Content)
+	}
+}
+
+func TestRead_NonExistent(t *testing.T) {
+	dir := t.TempDir()
+
+	got, err := Read(dir)
+	if err != nil {
+		t.Fatalf("Read on nonexistent file: %v", err)
+	}
+	if got != nil {
+		t.Errorf("expected nil for nonexistent snapshot, got %+v", got)
+	}
+}
+
+func TestWrite_CreatesDirectory(t *testing.T) {
+	dir := t.TempDir()
+	nested := filepath.Join(dir, "a", "b", "c")
+
+	snap := &SessionSnapshot{
+		Timestamp: time.Now().UTC(),
+		Content:   "content",
+	}
+
+	if err := Write(nested, snap); err != nil {
+		t.Fatalf("Write to nested dir: %v", err)
+	}
+
+	if _, err := os.Stat(Path(nested)); err != nil {
+		t.Errorf("snapshot file not created: %v", err)
+	}
+}
+
+func TestReadWithTTL_NoHeader_ContentPreserved(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write raw content without the header — should be read back as-is.
+	raw := "## Handcrafted snapshot\n\nSome text."
+	p := Path(dir)
+	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(p, []byte(raw), 0600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	got, err := ReadWithTTL(dir, time.Hour)
+	if err != nil {
+		t.Fatalf("ReadWithTTL: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected snapshot, got nil")
+	}
+	// Content should match (TrimSpace is applied by ReadWithTTL).
+	if got.Content != raw {
+		t.Errorf("Content mismatch: got %q, want %q", got.Content, raw)
+	}
+}
