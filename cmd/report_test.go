@@ -142,15 +142,18 @@ func TestBuildReportData_TotalBytes(t *testing.T) {
 	}
 }
 
-// TestBuildReportData_TokenEstimation verifies the bytes/4 token heuristic.
+// TestBuildReportData_TokenEstimation verifies the bytes/4 token heuristic fallback.
 func TestBuildReportData_TokenEstimation(t *testing.T) {
 	entries := []activitylog.Entry{
 		{Project: "/a", ContextBombSizeBytes: 4000},
 	}
 
 	rpt := buildReportData(entries, "last 30 days")
-	if rpt.EstimatedTokensRestored != 1000 {
-		t.Errorf("EstimatedTokensRestored = %d, want 1000 (4000 bytes / 4)", rpt.EstimatedTokensRestored)
+	if rpt.TotalTokens != 1000 {
+		t.Errorf("TotalTokens = %d, want 1000 (4000 bytes / 4 fallback)", rpt.TotalTokens)
+	}
+	if rpt.TokensExact {
+		t.Errorf("TokensExact = true, want false for byte-estimated fallback")
 	}
 }
 
