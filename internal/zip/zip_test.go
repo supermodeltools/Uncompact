@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -282,6 +283,27 @@ func TestCleanRepo(t *testing.T) {
 		if !names[rel] {
 			t.Errorf("expected %q in zip; archive contains: %v", rel, names)
 		}
+	}
+}
+
+// --- context cancellation ---
+
+func TestRepoZip_ContextCancellation(t *testing.T) {
+	root := t.TempDir()
+	// Create enough files to ensure the Walk callback is invoked multiple times.
+	for i := 0; i < 10; i++ {
+		makeFile(t, filepath.Join(root, fmt.Sprintf("file%02d.txt", i)), []byte("content"))
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel before calling RepoZip to exercise the fast-exit path
+
+	_, _, err := RepoZip(ctx, root)
+	if err == nil {
+		t.Fatal("expected non-nil error for cancelled context, got nil")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled, got %v", err)
 	}
 }
 
