@@ -109,6 +109,7 @@ func buildSnapshotContent(transcriptPath string, logFn func(string, ...interface
 	var filesInFocus []string
 
 	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 4*1024*1024), 4*1024*1024)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
