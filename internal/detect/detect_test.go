@@ -308,6 +308,34 @@ testpaths = ["tests"]
 	}
 }
 
+func TestAnalyze_Python_RequiresPythonGe(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "pyproject.toml", `[project]
+name = "my-project"
+requires-python = ">=3.9"
+`)
+
+	info := Analyze(dir)
+
+	if info.Version != "3.9" {
+		t.Errorf("Version = %q, want %q (constraint operator must be stripped)", info.Version, "3.9")
+	}
+}
+
+func TestAnalyze_Python_RequiresPythonRange(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "pyproject.toml", `[project]
+name = "my-project"
+requires-python = ">=3.8,<4.0"
+`)
+
+	info := Analyze(dir)
+
+	if info.Version != "3.8" {
+		t.Errorf("Version = %q, want %q (range constraint must be truncated to lower bound)", info.Version, "3.8")
+	}
+}
+
 func TestAnalyze_Python_RuffLint(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "pyproject.toml", "[tool.ruff]\nline-length = 120\n")

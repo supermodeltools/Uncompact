@@ -293,7 +293,12 @@ func analyzePython(dir string, info *RepoInfo) {
 			if strings.HasPrefix(line, "requires-python") && strings.Contains(line, "=") && info.Version == "" {
 				parts := strings.SplitN(line, "=", 2)
 				if len(parts) == 2 {
-					info.Version = strings.Trim(strings.TrimSpace(parts[1]), `"'`)
+					v := strings.Trim(strings.TrimSpace(parts[1]), `"'`)
+					v = strings.TrimLeft(v, "><=!~^")
+					if i := strings.IndexAny(v, ", "); i != -1 {
+						v = v[:i]
+					}
+					info.Version = strings.TrimSpace(v)
 				}
 			}
 		}
