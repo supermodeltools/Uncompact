@@ -283,6 +283,12 @@ func runLocalMode(logFn func(string, ...interface{})) error {
 	defer wmCancel()
 	wm := project.GetWorkingMemory(wmCtx, proj.RootDir, logFn)
 
+	// Load session snapshot written by the PreCompact hook (if present and fresh).
+	snap, snapErr := snapshot.Read(proj.RootDir)
+	if snapErr != nil {
+		logFn("[warn] snapshot read error: %v", snapErr)
+	}
+
 	// Open cache — failures are non-fatal; we fall back to a live build.
 	var store *cache.Store
 	if dbPath, err := config.DBPath(); err != nil {
@@ -331,16 +337,24 @@ func runLocalMode(logFn func(string, ...interface{})) error {
 	claudeMD := local.ReadClaudeMD(proj.RootDir)
 
 	opts := tmpl.RenderOptions{
-		MaxTokens:     maxTokens,
-		WorkingMemory: wm,
-		PostCompact:   postCompact,
-		ClaudeMD:      claudeMD,
-		LocalMode:     true,
+		MaxTokens:       maxTokens,
+		WorkingMemory:   wm,
+		PostCompact:     postCompact,
+		SessionSnapshot: snap,
+		ClaudeMD:        claudeMD,
+		LocalMode:       true,
 	}
 	output, tokens, err := tmpl.Render(graph, proj.Name, opts)
 	if err != nil {
 		logFn("[warn] render error: %v", err)
 		return silentExit()
+	}
+
+	// Clear the session snapshot after it has been injected into the context bomb.
+	if snap != nil {
+		if clearErr := snapshot.Clear(proj.RootDir); clearErr != nil {
+			logFn("[warn] snapshot clear error: %v", clearErr)
+		}
 	}
 
 	fmt.Print(output)
@@ -351,9 +365,10 @@ func runLocalMode(logFn func(string, ...interface{})) error {
 
 	// Write activity log entry (non-fatal on error).
 	_ = activitylog.Append(activitylog.Entry{
-		Timestamp:            time.Now().UTC(),
-		Project:              proj.RootDir,
-		ContextBombSizeBytes: len(output),
+		Timestamp:              time.Now().UTC(),
+		Project:                proj.RootDir,
+		ContextBombSizeBytes:   len(output),
+		SessionSnapshotPresent: snap != nil,
 	})
 
 	if store != nil {
