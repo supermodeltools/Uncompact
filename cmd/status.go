@@ -12,6 +12,7 @@ import (
 	"github.com/supermodeltools/uncompact/internal/cache"
 	"github.com/supermodeltools/uncompact/internal/config"
 	"github.com/supermodeltools/uncompact/internal/hooks"
+	"github.com/supermodeltools/uncompact/internal/local"
 	"github.com/supermodeltools/uncompact/internal/project"
 	tmpl "github.com/supermodeltools/uncompact/internal/template"
 	"github.com/supermodeltools/uncompact/internal/zip"
@@ -225,6 +226,11 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	effectiveMode := cfg.EffectiveMode(mode)
+	if effectiveMode == config.ModeLocal {
+		return dryRunLocalMode()
+	}
+
 	gitCtx, gitCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer gitCancel()
 	proj, err := project.Detect(gitCtx, "")
@@ -302,6 +308,78 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 	opts := tmpl.RenderOptions{
 		MaxTokens:     maxTokens,
 		WorkingMemory: wm,
+	}
+	output, tokens, err := tmpl.Render(graph, proj.Name, opts)
+	if err != nil {
+		return fmt.Errorf("render error: %w", err)
+	}
+
+	fmt.Fprintf(os.Stderr, "[dry-run] %d tokens (max: %d)\n", tokens, maxTokens)
+	fmt.Fprintln(os.Stderr, "--- context bomb preview ---")
+	fmt.Print(output)
+	return nil
+}
+
+// dryRunLocalMode runs dry-run using local repository analysis only,
+// requiring no API key. On cache miss it calls local.BuildProjectGraph;
+// results are NOT written back to cache (consistent with API dry-run behaviour).
+func dryRunLocalMode() error {
+	fmt.Fprintln(os.Stderr, "[dry-run] local mode — no API key required")
+
+	gitCtx, gitCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer gitCancel()
+	proj, err := project.Detect(gitCtx, "")
+	if err != nil {
+		return fmt.Errorf("project detection failed: %w", err)
+	}
+
+	wmCtx, wmCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer wmCancel()
+	wm := project.GetWorkingMemory(wmCtx, proj.RootDir)
+
+	dbPath, err := config.DBPath()
+	if err != nil {
+		return err
+	}
+	store, err := cache.Open(dbPath)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+
+	var graph *api.ProjectGraph
+
+	// Try fresh cache first to avoid rebuilding on every dry-run.
+	if !forceRefresh {
+		cached, fresh, _, _, err := store.Get(proj.Hash)
+		if err != nil {
+			return fmt.Errorf("reading cache: %w", err)
+		}
+		if cached != nil && fresh {
+			graph = cached
+			fmt.Fprintln(os.Stderr, "[dry-run] serving cached local graph")
+		}
+	}
+
+	// Build from local analysis on cache miss — results are NOT cached.
+	if graph == nil {
+		fmt.Fprintln(os.Stderr, "[dry-run] no cache — building from local analysis (results will NOT be cached)")
+		localCtx, localCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer localCancel()
+
+		built, err := local.BuildProjectGraph(localCtx, proj.RootDir, proj.Name)
+		if err != nil {
+			return fmt.Errorf("local graph build failed: %w", err)
+		}
+		graph = built
+	}
+
+	claudeMD := local.ReadClaudeMD(proj.RootDir)
+	opts := tmpl.RenderOptions{
+		MaxTokens:     maxTokens,
+		WorkingMemory: wm,
+		ClaudeMD:      claudeMD,
+		LocalMode:     true,
 	}
 	output, tokens, err := tmpl.Render(graph, proj.Name, opts)
 	if err != nil {
