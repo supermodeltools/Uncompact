@@ -238,11 +238,13 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("project detection failed: %w", err)
 	}
 
+	logFn := makeLogger()
+
 	// Gather working memory from git and GitHub (failures are silent).
 	// Use a longer timeout for the gh CLI call, which is a network operation.
 	wmCtx, wmCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer wmCancel()
-	wm := project.GetWorkingMemory(wmCtx, proj.RootDir)
+	wm := project.GetWorkingMemory(wmCtx, proj.RootDir, logFn)
 
 	dbPath, err := config.DBPath()
 	if err != nil {
@@ -298,7 +300,6 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 	}
 	logZipSkips(skipReport)
 
-	logFn := makeLogger()
 	apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
 	graph, err := fetchGraphWithCircularDeps(ctx, apiClient, proj.Name, zipData)
 	if err != nil {
@@ -333,9 +334,11 @@ func dryRunLocalMode() error {
 		return fmt.Errorf("project detection failed: %w", err)
 	}
 
+	logFn := makeLogger()
+
 	wmCtx, wmCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer wmCancel()
-	wm := project.GetWorkingMemory(wmCtx, proj.RootDir)
+	wm := project.GetWorkingMemory(wmCtx, proj.RootDir, logFn)
 
 	dbPath, err := config.DBPath()
 	if err != nil {

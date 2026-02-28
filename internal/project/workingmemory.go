@@ -16,7 +16,7 @@ type WorkingMemory struct {
 	DefaultBranch string
 	IssueNumber   int
 	IssueTitle    string
-	IssueBody     string   // truncated to ~500 chars
+	IssueBody     string   // truncated to ~2000 runes
 	BranchCommits []string // git log <default>..HEAD --oneline, max 10
 	ChangedFiles  []string // git diff --stat <default>..HEAD, file lines only
 	Uncommitted   []string // git diff HEAD --stat, file lines only
@@ -51,7 +51,7 @@ func defaultBranch(ctx context.Context, rootDir string) string {
 // GetWorkingMemory derives situational context from git and GitHub.
 // Returns nil if the branch has no commits ahead of the default branch and no
 // uncommitted changes, or on error.
-func GetWorkingMemory(ctx context.Context, rootDir string) *WorkingMemory {
+func GetWorkingMemory(ctx context.Context, rootDir string, logFn func(string, ...interface{})) *WorkingMemory {
 	// Get current branch
 	branchOut, err := runGit(ctx, rootDir, "branch", "--show-current")
 	if err != nil {
@@ -97,7 +97,7 @@ func GetWorkingMemory(ctx context.Context, rootDir string) *WorkingMemory {
 	if m := issueNumberRe.FindStringSubmatch(branch); m != nil {
 		if n, err := strconv.Atoi(m[1]); err == nil && n > 0 {
 			wm.IssueNumber = n
-			ghFetchIssue(ctx, wm, n)
+			ghFetchIssue(ctx, wm, n, logFn)
 		}
 	}
 
@@ -148,7 +148,7 @@ func parseStatLines(s string, max int) []string {
 
 // ghFetchIssue populates IssueTitle and IssueBody from the GitHub CLI.
 // Failures are silently ignored. The command is cancelled if ctx is done.
-func ghFetchIssue(ctx context.Context, wm *WorkingMemory, issueNumber int) {
+func ghFetchIssue(ctx context.Context, wm *WorkingMemory, issueNumber int, logFn func(string, ...interface{})) {
 	cmd := exec.CommandContext(ctx, "gh", "issue", "view", fmt.Sprintf("%d", issueNumber), "--json", "title,body")
 	out, err := cmd.Output()
 	if err != nil {
@@ -163,8 +163,10 @@ func ghFetchIssue(ctx context.Context, wm *WorkingMemory, issueNumber int) {
 	}
 	wm.IssueTitle = result.Title
 	body := result.Body
-	if len([]rune(body)) > 500 {
-		body = string([]rune(body)[:500]) + "..."
+	const maxRunes = 2000
+	if runes := []rune(body); len(runes) > maxRunes {
+		logFn("[warn] issue body truncated from %d to %d runes; context may be incomplete", len(runes), maxRunes)
+		body = string(runes[:maxRunes]) + "..."
 	}
 	wm.IssueBody = body
 }

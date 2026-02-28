@@ -84,7 +84,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	// Use a longer timeout for the gh CLI call, which is a network operation.
 	wmCtx, wmCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer wmCancel()
-	wm := project.GetWorkingMemory(wmCtx, proj.RootDir)
+	wm := project.GetWorkingMemory(wmCtx, proj.RootDir, logFn)
 
 	// Load session snapshot written by the PreCompact hook (if present and fresh).
 	snap, snapErr := snapshot.Read(proj.RootDir)
@@ -275,7 +275,7 @@ func runLocalMode(logFn func(string, ...interface{})) error {
 
 	wmCtx, wmCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer wmCancel()
-	wm := project.GetWorkingMemory(wmCtx, proj.RootDir)
+	wm := project.GetWorkingMemory(wmCtx, proj.RootDir, logFn)
 
 	// Open cache — failures are non-fatal; we fall back to a live build.
 	var store *cache.Store
