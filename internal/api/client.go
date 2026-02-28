@@ -31,6 +31,7 @@ type Client struct {
 	httpClient *http.Client
 	debug      bool
 	logFn      func(format string, args ...interface{})
+	afterFn    func(time.Duration) <-chan time.Time // injectable for testing; defaults to time.After
 }
 
 // SupermodelIR is the raw response from the Supermodel API /v1/graphs/supermodel endpoint.
@@ -263,6 +264,7 @@ func New(baseURL, apiKey string, debug bool, logFn func(string, ...interface{}))
 		httpClient: &http.Client{
 			Timeout: defaultTimeout,
 		},
+		afterFn: time.After,
 	}
 }
 
@@ -373,7 +375,7 @@ func (c *Client) pollJob(
 			select {
 			case <-ctx.Done():
 				return ctxDeadlineErr(ctx)
-			case <-time.After(10 * time.Second):
+			case <-c.afterFn(10 * time.Second):
 			}
 			continue
 		}
@@ -384,7 +386,7 @@ func (c *Client) pollJob(
 			select {
 			case <-ctx.Done():
 				return ctxDeadlineErr(ctx)
-			case <-time.After(10 * time.Second):
+			case <-c.afterFn(10 * time.Second):
 			}
 			continue
 		}
@@ -417,7 +419,7 @@ func (c *Client) pollJob(
 			select {
 			case <-ctx.Done():
 				return ctxDeadlineErr(ctx)
-			case <-time.After(retryAfter):
+			case <-c.afterFn(retryAfter):
 			}
 			continue
 		case http.StatusNotFound, http.StatusMethodNotAllowed:
@@ -432,7 +434,7 @@ func (c *Client) pollJob(
 				select {
 				case <-ctx.Done():
 					return ctxDeadlineErr(ctx)
-				case <-time.After(10 * time.Second):
+				case <-c.afterFn(10 * time.Second):
 				}
 				continue
 			}
@@ -481,14 +483,14 @@ func (c *Client) pollJob(
 			select {
 			case <-ctx.Done():
 				return ctxDeadlineErr(ctx)
-			case <-time.After(retryAfter):
+			case <-c.afterFn(retryAfter):
 			}
 		default:
 			c.logFn("[debug] unknown job status: %s \xe2\x80\x94 retrying in 10s", jobResp.Status)
 			select {
 			case <-ctx.Done():
 				return ctxDeadlineErr(ctx)
-			case <-time.After(10 * time.Second):
+			case <-c.afterFn(10 * time.Second):
 			}
 		}
 	}
