@@ -356,7 +356,7 @@ func analyzePython(dir string, info *RepoInfo) {
 
 	// Test fallback.
 	if info.TestCmd == "" {
-		if fsutil.FileExists(filepath.Join(dir, "pytest.ini")) || fsutil.FileExists(filepath.Join(dir, "setup.cfg")) {
+		if fsutil.FileExists(filepath.Join(dir, "pytest.ini")) {
 			info.TestCmd = "pytest"
 		}
 	}
