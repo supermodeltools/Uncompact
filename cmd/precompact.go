@@ -215,6 +215,10 @@ func looksLikeFilePath(s string) bool {
 	if len(s) < 3 || len(s) > 200 {
 		return false
 	}
+	// Reject URL schemes so that https://... etc. are not treated as file paths
+	if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") || strings.HasPrefix(s, "ftp://") {
+		return false
+	}
 	// Must contain a slash and a dot to look like a file path
 	return strings.Contains(s, "/") && strings.Contains(s, ".")
 }
