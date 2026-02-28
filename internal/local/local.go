@@ -215,19 +215,15 @@ func readDescription(rootDir string) string {
 			continue
 		}
 		lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-		// Skip the first heading, return the next non-empty non-heading line
-		// (which is typically the one-liner description following the title).
-		pastHeading := false
+		// Return the first non-empty, non-heading line (the description may
+		// appear before any heading, so we don't require a heading first).
 		for _, line := range lines {
 			line = strings.TrimSpace(line)
 			if strings.HasPrefix(line, "#") {
-				pastHeading = true
 				continue
 			}
 			if line != "" && len(line) < 250 {
-				if pastHeading {
-					return line
-				}
+				return line
 			}
 		}
 		break
