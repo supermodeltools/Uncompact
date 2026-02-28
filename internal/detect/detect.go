@@ -90,7 +90,9 @@ func hasGoTestFiles(dir string) bool {
 		}
 		if d.IsDir() {
 			name := d.Name()
-			if name == "vendor" || name == ".git" || name == "testdata" {
+			if name == "vendor" || name == ".git" || name == "testdata" ||
+				name == "node_modules" || name == "dist" || name == "build" ||
+				name == "target" || name == "__pycache__" || strings.HasPrefix(name, ".") {
 				return filepath.SkipDir
 			}
 			return nil
