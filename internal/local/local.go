@@ -248,7 +248,17 @@ func buildDomains(dirFiles map[string][]string) []api.Domain {
 	var domains []api.Domain
 	for _, dir := range dirs {
 		files := dirFiles[dir]
-		sort.Strings(files)
+		sort.Slice(files, func(i, j int) bool {
+			pi, pj := entryPointPriority(files[i]), entryPointPriority(files[j])
+			if pi != pj {
+				return pi > pj
+			}
+			li, lj := len(files[i]), len(files[j])
+			if li != lj {
+				return li < lj
+			}
+			return files[i] < files[j]
+		})
 
 		keyFiles := files
 		if len(keyFiles) > maxKeyFiles {
