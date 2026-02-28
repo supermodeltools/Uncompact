@@ -319,6 +319,42 @@ func TestAnalyze_Python_RuffLint(t *testing.T) {
 	}
 }
 
+func TestAnalyze_Python_SetupPyOnly(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "setup.py", "from setuptools import setup\nsetup(name='mylib', version='1.0')\n")
+
+	info := Analyze(dir)
+
+	if info.Language != "Python" {
+		t.Errorf("Language = %q, want %q", info.Language, "Python")
+	}
+}
+
+func TestAnalyze_Python_SetupCfgName(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "setup.cfg", "[metadata]\nname = my-legacy-project\nversion = 2.0\n\n[options]\ninstall_requires =\n    requests\n")
+
+	info := Analyze(dir)
+
+	if info.Language != "Python" {
+		t.Errorf("Language = %q, want %q", info.Language, "Python")
+	}
+	if info.ProjectName != "my-legacy-project" {
+		t.Errorf("ProjectName = %q, want %q", info.ProjectName, "my-legacy-project")
+	}
+}
+
+func TestAnalyze_Python_SetupCfgPytest(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "setup.cfg", "[metadata]\nname = myapp\n\n[tool:pytest]\ntestpaths = tests\n")
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "pytest" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "pytest")
+	}
+}
+
 func TestAnalyze_Python_PythonVersionFile(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "requirements.txt", "flask\n")

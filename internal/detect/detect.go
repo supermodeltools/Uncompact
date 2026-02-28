@@ -56,7 +56,10 @@ func Analyze(dir string) *RepoInfo {
 		analyzeNode(dir, info)
 	case fsutil.FileExists(filepath.Join(dir, "Cargo.toml")):
 		analyzeRust(dir, info)
-	case fsutil.FileExists(filepath.Join(dir, "pyproject.toml")), fsutil.FileExists(filepath.Join(dir, "requirements.txt")):
+	case fsutil.FileExists(filepath.Join(dir, "pyproject.toml")),
+		fsutil.FileExists(filepath.Join(dir, "requirements.txt")),
+		fsutil.FileExists(filepath.Join(dir, "setup.py")),
+		fsutil.FileExists(filepath.Join(dir, "setup.cfg")):
 		analyzePython(dir, info)
 	default:
 		info.Language = "Unknown"
@@ -314,6 +317,35 @@ func analyzePython(dir string, info *RepoInfo) {
 			info.LintCmd = "ruff check ."
 		} else if fsutil.FileExists(filepath.Join(dir, ".flake8")) {
 			info.LintCmd = "flake8"
+		}
+	}
+
+	// Parse setup.cfg for project name and pytest configuration.
+	if data, err := os.ReadFile(filepath.Join(dir, "setup.cfg")); err == nil {
+		content := string(data)
+		scanner := bufio.NewScanner(strings.NewReader(content))
+		inMetadata := false
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "[metadata]" {
+				inMetadata = true
+				continue
+			}
+			if strings.HasPrefix(line, "[") {
+				inMetadata = false
+			}
+			if inMetadata && strings.HasPrefix(line, "name") && strings.Contains(line, "=") && info.ProjectName == filepath.Base(dir) {
+				parts := strings.SplitN(line, "=", 2)
+				if len(parts) == 2 {
+					name := strings.TrimSpace(parts[1])
+					if name != "" {
+						info.ProjectName = name
+					}
+				}
+			}
+		}
+		if info.TestCmd == "" && (strings.Contains(content, "[tool:pytest]") || strings.Contains(content, "[pytest]")) {
+			info.TestCmd = "pytest"
 		}
 	}
 
