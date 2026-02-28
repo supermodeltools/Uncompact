@@ -316,6 +316,128 @@ func buildDiff(before, after string) string {
 	return sb.String()
 }
 
+// UninstallResult holds the result of an uninstall operation.
+type UninstallResult struct {
+	SettingsPath    string
+	Diff            string
+	NothingToRemove bool
+}
+
+// Uninstall removes the Uncompact hooks from the Claude Code settings.json,
+// leaving any other hooks untouched.
+func Uninstall(settingsPath string, dryRun bool) (*UninstallResult, error) {
+	result := &UninstallResult{SettingsPath: settingsPath}
+
+	data, err := os.ReadFile(settingsPath)
+	if os.IsNotExist(err) {
+		result.NothingToRemove = true
+		result.Diff = "(no changes — settings.json not found)"
+		return result, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading settings.json: %w", err)
+	}
+
+	var rawJSON map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawJSON); err != nil {
+		return nil, fmt.Errorf("invalid settings.json at %s: %w", settingsPath, err)
+	}
+
+	existingHooks := make(map[string][]Hook)
+	if hooksRaw, ok := rawJSON["hooks"]; ok {
+		if err := json.Unmarshal(hooksRaw, &existingHooks); err != nil {
+			return nil, fmt.Errorf("existing hooks section is not valid JSON: %w", err)
+		}
+	}
+
+	if !isAnyUncompactHookInstalled(existingHooks) {
+		result.NothingToRemove = true
+		result.Diff = "(no changes — Uncompact hooks not found)"
+		return result, nil
+	}
+
+	filtered := removeUncompactHooks(existingHooks)
+
+	oldHooksJSON, _ := json.MarshalIndent(existingHooks, "", "  ")
+	newHooksJSON, _ := json.MarshalIndent(filtered, "", "  ")
+	result.Diff = buildDiff(string(oldHooksJSON), string(newHooksJSON))
+
+	if dryRun {
+		return result, nil
+	}
+
+	if len(filtered) == 0 {
+		delete(rawJSON, "hooks")
+	} else {
+		newHooksRaw, err := json.Marshal(filtered)
+		if err != nil {
+			return nil, err
+		}
+		rawJSON["hooks"] = newHooksRaw
+	}
+
+	finalJSON, err := json.MarshalIndent(rawJSON, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	tmp := settingsPath + ".tmp"
+	if err := os.WriteFile(tmp, finalJSON, 0600); err != nil {
+		_ = os.Remove(tmp)
+		return nil, fmt.Errorf("writing settings.json: %w", err)
+	}
+	if err := os.Rename(tmp, settingsPath); err != nil {
+		_ = os.Remove(tmp)
+		return nil, fmt.Errorf("writing settings.json: %w", err)
+	}
+
+	return result, nil
+}
+
+// isAnyUncompactHookInstalled reports whether ANY Uncompact hook is present.
+func isAnyUncompactHookInstalled(hooks map[string][]Hook) bool {
+	return commandExistsInHooks(hooks["PreCompact"], "uncompact pre-compact") ||
+		commandExistsInHooks(hooks["Stop"], "uncompact run", "uncompact-hook.sh") ||
+		commandExistsInHooks(hooks["UserPromptSubmit"], "uncompact show-cache", "show-hook.sh") ||
+		commandExistsInHooks(hooks["UserPromptSubmit"], "uncompact pregen")
+}
+
+// removeUncompactHooks returns a copy of existing with all Uncompact-owned
+// hook entries filtered out. Other hooks are left untouched.
+func removeUncompactHooks(existing map[string][]Hook) map[string][]Hook {
+	patterns := map[string][]string{
+		"PreCompact":       {"uncompact pre-compact"},
+		"Stop":             {"uncompact run", "uncompact-hook.sh"},
+		"UserPromptSubmit": {"uncompact show-cache", "show-hook.sh", "uncompact pregen"},
+	}
+
+	result := make(map[string][]Hook)
+	for event, hookList := range existing {
+		var filtered []Hook
+		for _, hook := range hookList {
+			if !isUncompactHook(hook, patterns[event]) {
+				filtered = append(filtered, hook)
+			}
+		}
+		if len(filtered) > 0 {
+			result[event] = filtered
+		}
+	}
+	return result
+}
+
+// isUncompactHook reports whether any command in the hook contains one of the
+// given pattern substrings.
+func isUncompactHook(hook Hook, patterns []string) bool {
+	for _, cmd := range hook.Hooks {
+		for _, pattern := range patterns {
+			if strings.Contains(cmd.Command, pattern) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Verify checks if the Uncompact hooks are properly installed.
 func Verify(settingsPath string) (bool, error) {
 	data, err := os.ReadFile(settingsPath)
