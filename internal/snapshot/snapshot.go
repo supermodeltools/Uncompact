@@ -63,11 +63,14 @@ func ReadWithTTL(projectRoot string, ttl time.Duration) (*SessionSnapshot, error
 	// Parse optional timestamp from header comment
 	if strings.HasPrefix(content, headerPrefix) {
 		end := strings.Index(content, headerSuffix)
-		if end > 0 {
-			tsStr := content[len(headerPrefix):end]
-			if t, parseErr := time.Parse(time.RFC3339, tsStr); parseErr == nil {
-				timestamp = t
-			}
+		if end < 0 {
+			// Header prefix found but suffix is missing — file is truncated or corrupt.
+			// Treat as unreadable to prevent stale/partial content from being injected.
+			return nil, nil
+		}
+		tsStr := content[len(headerPrefix):end]
+		if t, parseErr := time.Parse(time.RFC3339, tsStr); parseErr == nil {
+			timestamp = t
 		}
 		// Strip header line
 		if nl := strings.Index(content, "\n"); nl >= 0 {
