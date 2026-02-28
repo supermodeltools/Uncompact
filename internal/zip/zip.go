@@ -189,8 +189,12 @@ func RepoZip(ctx context.Context, root string) ([]byte, SkipReport, error) {
 			return nil
 		}
 
-		// Skip hidden files (e.g. .env, .secrets).
-		if strings.HasPrefix(base, ".") {
+		// Skip hidden files (e.g. .env, .secrets) unless they are explicitly
+		// git-tracked. When git is unavailable (gitFiles is nil) we fall back to
+		// skipping all dot-prefixed files for safety. Tracked dotfiles such as
+		// .eslintrc.json, .prettierrc, and .editorconfig are intentionally
+		// included because they provide valuable project context.
+		if strings.HasPrefix(base, ".") && (gitFiles == nil || !gitFiles[rel]) {
 			return nil
 		}
 
