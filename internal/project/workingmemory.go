@@ -61,12 +61,14 @@ func GetWorkingMemory(ctx context.Context, rootDir string) *WorkingMemory {
 
 	base := defaultBranch(ctx, rootDir)
 
-	// Get commits ahead of the default branch
+	// Get commits ahead of the default branch.
+	// On error (shallow clone, unborn HEAD, detached HEAD) treat as no commits
+	// and fall through to check uncommitted changes.
 	commitsOut, err := runGit(ctx, rootDir, "log", base+"..HEAD", "--oneline")
-	if err != nil {
-		return nil
+	var commits []string
+	if err == nil {
+		commits = parseLines(commitsOut, 10)
 	}
-	commits := parseLines(commitsOut, 10)
 	if len(commits) == 0 {
 		// No commits ahead — check for uncommitted changes before omitting entirely
 		uncommittedOut, uErr := runGit(ctx, rootDir, "diff", "HEAD", "--stat")
