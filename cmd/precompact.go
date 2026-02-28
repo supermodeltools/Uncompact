@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/supermodeltools/uncompact/internal/project"
 	"github.com/supermodeltools/uncompact/internal/snapshot"
 )
 
@@ -64,9 +66,12 @@ func preCompactHandler(cmd *cobra.Command, args []string) error {
 		return silentExit()
 	}
 
-	cwd, err := os.Getwd()
+	gitCtx, gitCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer gitCancel()
+
+	proj, err := project.Detect(gitCtx, "")
 	if err != nil {
-		logFn("[warn] pre-compact: getwd: %v", err)
+		logFn("[warn] pre-compact: project detection failed: %v", err)
 		return silentExit()
 	}
 
@@ -76,12 +81,12 @@ func preCompactHandler(cmd *cobra.Command, args []string) error {
 		Timestamp: time.Now().UTC(),
 		Content:   content,
 	}
-	if err := snapshot.Write(cwd, snap); err != nil {
+	if err := snapshot.Write(proj.RootDir, snap); err != nil {
 		logFn("[warn] pre-compact: writing snapshot: %v", err)
 		return silentExit()
 	}
 
-	logFn("[debug] pre-compact: snapshot written to %s", snapshot.Path(cwd))
+	logFn("[debug] pre-compact: snapshot written to %s", snapshot.Path(proj.RootDir))
 	return nil
 }
 
