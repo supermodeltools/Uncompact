@@ -173,7 +173,13 @@ func Install(settingsPath string, dryRun bool) (*InstallResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(settingsPath, finalJSON, 0600); err != nil {
+	tmp := settingsPath + ".tmp"
+	if err := os.WriteFile(tmp, finalJSON, 0600); err != nil {
+		_ = os.Remove(tmp)
+		return nil, fmt.Errorf("writing settings.json: %w", err)
+	}
+	if err := os.Rename(tmp, settingsPath); err != nil {
+		_ = os.Remove(tmp)
 		return nil, fmt.Errorf("writing settings.json: %w", err)
 	}
 
