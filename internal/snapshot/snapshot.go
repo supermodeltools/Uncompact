@@ -90,6 +90,7 @@ func ReadWithTTL(projectRoot string, ttl time.Duration) (*SessionSnapshot, error
 
 	// Enforce TTL
 	if !timestamp.IsZero() && ttl > 0 && time.Since(timestamp) > ttl {
+		_ = os.Remove(Path(projectRoot)) // clean up stale file
 		return nil, nil
 	}
 
