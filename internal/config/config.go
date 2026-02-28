@@ -130,6 +130,12 @@ func Load(flagAPIKey string) (*Config, error) {
 		if err := json.Unmarshal(data, cfg); err != nil {
 			return nil, fmt.Errorf("malformed config file %s: %w", cfgFile, err)
 		}
+		if cfg.Mode != "" {
+			cfg.Mode = strings.ToLower(strings.TrimSpace(cfg.Mode))
+			if err := ValidateMode(cfg.Mode); err != nil {
+				return nil, fmt.Errorf("config file field \"mode\": %w", err)
+			}
+		}
 	} else if !os.IsNotExist(err) {
 		return nil, fmt.Errorf("reading config file %s: %w", cfgFile, err)
 	}
@@ -141,7 +147,11 @@ func Load(flagAPIKey string) (*Config, error) {
 
 	// Override mode with env var
 	if envMode := os.Getenv(EnvMode); envMode != "" {
-		cfg.Mode = strings.ToLower(strings.TrimSpace(envMode))
+		normalized := strings.ToLower(strings.TrimSpace(envMode))
+		if err := ValidateMode(normalized); err != nil {
+			return nil, fmt.Errorf("%s: %w", EnvMode, err)
+		}
+		cfg.Mode = normalized
 	}
 
 	// Override with flag
@@ -182,22 +192,35 @@ func (c *Config) IsAuthenticated() bool {
 	return c.APIKey != ""
 }
 
-// EffectiveMode returns the resolved operation mode.
-// flagMode (from --mode flag) takes precedence over the config Mode field,
-// which takes precedence over auto-detection.
+// ValidateMode reports whether s is a recognised operation mode.
+// An empty string is valid (triggers auto-detection in EffectiveMode).
+func ValidateMode(s string) error {
+	if s == "" || s == ModeLocal || s == ModeAPI {
+		return nil
+	}
+	return fmt.Errorf("invalid mode %q: must be %q or %q", s, ModeLocal, ModeAPI)
+}
+
+// EffectiveMode returns the resolved operation mode, or an error if flagMode is
+// not a recognised value. flagMode (from --mode flag) takes precedence over the
+// config Mode field, which takes precedence over auto-detection.
 // Auto-detection: defaults to ModeLocal when no API key is configured.
-func (c *Config) EffectiveMode(flagMode string) string {
+func (c *Config) EffectiveMode(flagMode string) (string, error) {
 	mode := c.Mode
 	if flagMode != "" {
-		mode = strings.ToLower(strings.TrimSpace(flagMode))
+		normalized := strings.ToLower(strings.TrimSpace(flagMode))
+		if err := ValidateMode(normalized); err != nil {
+			return "", fmt.Errorf("--mode flag: %w", err)
+		}
+		mode = normalized
 	}
 	switch mode {
 	case ModeLocal, ModeAPI:
-		return mode
+		return mode, nil
 	}
 	// Auto-detect: default to local if no API key configured
 	if !c.IsAuthenticated() {
-		return ModeLocal
+		return ModeLocal, nil
 	}
-	return ModeAPI
+	return ModeAPI, nil
 }

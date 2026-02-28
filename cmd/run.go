@@ -52,7 +52,11 @@ func runHandler(cmd *cobra.Command, args []string) error {
 		return silentExit()
 	}
 
-	effectiveMode := cfg.EffectiveMode(mode)
+	effectiveMode, err := cfg.EffectiveMode(mode)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[warn] %v\n", err)
+		return silentExit()
+	}
 	logFn("[debug] mode: %s", effectiveMode)
 
 	if effectiveMode == config.ModeLocal {

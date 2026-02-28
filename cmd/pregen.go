@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -43,7 +45,11 @@ func pregenHandler(cmd *cobra.Command, args []string) error {
 		return nil // silent exit — never block hooks
 	}
 
-	effectiveMode := cfg.EffectiveMode(mode)
+	effectiveMode, err := cfg.EffectiveMode(mode)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[warn] %v\n", err)
+		return nil // silent exit — never block hooks
+	}
 	if effectiveMode == config.ModeLocal {
 		return pregenLocalMode(logFn)
 	}

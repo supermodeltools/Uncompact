@@ -226,7 +226,10 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	effectiveMode := cfg.EffectiveMode(mode)
+	effectiveMode, err := cfg.EffectiveMode(mode)
+	if err != nil {
+		return err
+	}
 	if effectiveMode == config.ModeLocal {
 		return dryRunLocalMode()
 	}
