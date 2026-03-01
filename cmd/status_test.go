@@ -5,6 +5,35 @@ import (
 	"time"
 )
 
+func ptrTime(t time.Time) *time.Time { return &t }
+
+func TestFormatCacheStatus(t *testing.T) {
+	fixedNow := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name      string
+		hasGraph  bool
+		fresh     bool
+		expiresAt *time.Time
+		want      string
+	}{
+		{"empty cache", false, false, nil, "empty"},
+		{"fresh no expiry", true, true, nil, "fresh"},
+		{"fresh with expiry", true, true, ptrTime(fixedNow.Add(14 * time.Minute)), "fresh (expires in 14m)"},
+		{"stale no expiry", true, false, nil, "stale (will refresh on next run)"},
+		{"stale with expiry", true, false, ptrTime(fixedNow.Add(-2 * time.Hour)), "stale (expired 2.0h ago, will refresh on next run)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatCacheStatus(tt.hasGraph, tt.fresh, tt.expiresAt, fixedNow)
+			if got != tt.want {
+				t.Errorf("formatCacheStatus() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTruncate(t *testing.T) {
 	tests := []struct {
 		name string

@@ -130,18 +130,12 @@ func statusHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	// Cache freshness
-	graph, fresh, _, _, err := store.Get(proj.Hash)
+	graph, fresh, expiresAt, _, err := store.Get(proj.Hash)
 	if err != nil {
 		fmt.Printf("Cache:    error (%v)\n", err)
 		return nil
 	}
-	if graph == nil {
-		fmt.Println("Cache:    empty")
-	} else if fresh {
-		fmt.Println("Cache:    fresh")
-	} else {
-		fmt.Println("Cache:    stale (will refresh on next run)")
-	}
+	fmt.Printf("Cache:    %s\n", formatCacheStatus(graph != nil, fresh, expiresAt, time.Now()))
 
 	return nil
 }
@@ -443,6 +437,22 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return string(runes[:n-3]) + "..."
+}
+
+func formatCacheStatus(hasGraph bool, fresh bool, expiresAt *time.Time, now time.Time) string {
+	if !hasGraph {
+		return "empty"
+	}
+	if fresh {
+		if expiresAt != nil {
+			return fmt.Sprintf("fresh (expires in %s)", humanDuration(expiresAt.Sub(now)))
+		}
+		return "fresh"
+	}
+	if expiresAt != nil {
+		return fmt.Sprintf("stale (expired %s ago, will refresh on next run)", humanDuration(now.Sub(*expiresAt)))
+	}
+	return "stale (will refresh on next run)"
 }
 
 func humanDuration(d time.Duration) string {
