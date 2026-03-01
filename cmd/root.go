@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/supermodeltools/uncompact/internal/config"
 )
 
 var (
@@ -52,7 +54,7 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().StringVar(&apiKey, "api-key", "", "Supermodel API key (overrides SUPERMODEL_API_KEY env var)")
 	rootCmd.PersistentFlags().StringVar(&mode, "mode", "", `Operation mode: "local" (no API key required) or "api" (AI-powered). Default: auto-detect`)
-	rootCmd.PersistentFlags().IntVar(&maxTokens, "max-tokens", 2000, "Maximum tokens in context bomb output")
+	rootCmd.PersistentFlags().IntVar(&maxTokens, "max-tokens", config.DefaultMaxTokens, "Maximum tokens in context bomb output")
 	rootCmd.PersistentFlags().BoolVar(&forceRefresh, "force-refresh", false, "Bypass cache and fetch fresh from API")
 	rootCmd.PersistentFlags().BoolVar(&fallback, "fallback", false, "Emit minimal static context if full mode fails")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug output on stderr")

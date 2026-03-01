@@ -17,6 +17,8 @@ const (
 
 	ModeLocal = "local"
 	ModeAPI   = "api"
+
+	DefaultMaxTokens = 2000
 )
 
 // Config holds the Uncompact configuration.
@@ -164,7 +166,7 @@ func Load(flagAPIKey string) (*Config, error) {
 		cfg.BaseURL = APIBaseURL
 	}
 	if cfg.MaxTokens <= 0 {
-		cfg.MaxTokens = 2000
+		cfg.MaxTokens = DefaultMaxTokens
 	}
 
 	return cfg, nil

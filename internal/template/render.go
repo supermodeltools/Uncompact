@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/supermodeltools/uncompact/internal/api"
+	"github.com/supermodeltools/uncompact/internal/config"
 	"github.com/supermodeltools/uncompact/internal/project"
 	"github.com/supermodeltools/uncompact/internal/snapshot"
 )
@@ -100,7 +101,7 @@ type RenderOptions struct {
 // Render produces the context bomb Markdown, respecting the token budget.
 func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (string, int, error) {
 	if opts.MaxTokens <= 0 {
-		opts.MaxTokens = 2000
+		opts.MaxTokens = config.DefaultMaxTokens
 	}
 
 	now := time.Now().UTC()
