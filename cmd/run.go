@@ -496,7 +496,7 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 
 	claudeMD := local.ReadClaudeMD(proj.RootDir)
 	opts := tmpl.RenderOptions{MaxTokens: maxTokens, WorkingMemory: wm, PostCompact: postCompact, SessionSnapshot: snap, ClaudeMD: claudeMD}
-	output, _, err := tmpl.Render(graph, proj.Name, opts)
+	output, tokens, err := tmpl.Render(graph, proj.Name, opts)
 	if err != nil {
 		logFn("[warn] render error: %v", err)
 		if fallback {
@@ -538,6 +538,14 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 		ContextBombSizeBytes:   len(output),
 		SessionSnapshotPresent: snap != nil,
 	})
+
+	// Best-effort: log to SQLite injection log if the DB is reachable.
+	if dbPath, err := config.DBPath(); err == nil {
+		if s, err := cache.Open(dbPath); err == nil {
+			defer s.Close()
+			_ = s.LogInjection(proj.Hash, proj.Name, tokens, "api", nil)
+		}
+	}
 
 	return nil
 }
