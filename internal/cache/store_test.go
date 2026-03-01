@@ -200,7 +200,7 @@ func TestPrune_RemovesOldInjectionLogs(t *testing.T) {
 		t.Fatalf("Prune: %v", err)
 	}
 
-	logs, err := s.RecentLogs(100)
+	logs, err := s.RecentLogs(100, "")
 	if err != nil {
 		t.Fatalf("RecentLogs: %v", err)
 	}
@@ -235,7 +235,7 @@ func TestLogInjection_RecentLogs(t *testing.T) {
 		t.Fatalf("insert second log: %v", err)
 	}
 
-	logs, err := s.RecentLogs(10)
+	logs, err := s.RecentLogs(10, "")
 	if err != nil {
 		t.Fatalf("RecentLogs: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestLogInjection_PublicAPI(t *testing.T) {
 		t.Fatalf("LogInjection without staleAt: %v", err)
 	}
 
-	logs, err := s.RecentLogs(10)
+	logs, err := s.RecentLogs(10, "")
 	if err != nil {
 		t.Fatalf("RecentLogs: %v", err)
 	}
@@ -292,7 +292,7 @@ func TestRecentLogs_DefaultLimit(t *testing.T) {
 	}
 
 	// limit=0 should default to 20.
-	logs, err := s.RecentLogs(0)
+	logs, err := s.RecentLogs(0, "")
 	if err != nil {
 		t.Fatalf("RecentLogs(0): %v", err)
 	}
@@ -301,12 +301,39 @@ func TestRecentLogs_DefaultLimit(t *testing.T) {
 	}
 
 	// Explicit limit should be respected.
-	logs5, err := s.RecentLogs(5)
+	logs5, err := s.RecentLogs(5, "")
 	if err != nil {
 		t.Fatalf("RecentLogs(5): %v", err)
 	}
 	if len(logs5) != 5 {
 		t.Errorf("RecentLogs(5) returned %d entries, want 5", len(logs5))
+	}
+}
+
+func TestRecentLogs_ProjectFilter(t *testing.T) {
+	s := openTestStore(t)
+
+	if err := s.LogInjection("hash-a", "project-a", 100, "api", nil); err != nil {
+		t.Fatalf("LogInjection hash-a: %v", err)
+	}
+	if err := s.LogInjection("hash-b", "project-b", 200, "api", nil); err != nil {
+		t.Fatalf("LogInjection hash-b: %v", err)
+	}
+	if err := s.LogInjection("hash-a", "project-a", 300, "cache", nil); err != nil {
+		t.Fatalf("LogInjection hash-a second: %v", err)
+	}
+
+	logs, err := s.RecentLogs(10, "hash-a")
+	if err != nil {
+		t.Fatalf("RecentLogs with project filter: %v", err)
+	}
+	if len(logs) != 2 {
+		t.Fatalf("got %d logs for hash-a, want 2", len(logs))
+	}
+	for _, l := range logs {
+		if l.ProjectHash != "hash-a" {
+			t.Errorf("expected project hash-a, got %s", l.ProjectHash)
+		}
 	}
 }
 
