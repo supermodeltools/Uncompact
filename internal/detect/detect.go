@@ -88,8 +88,11 @@ func makefileHasTarget(dir, target string) bool {
 func hasGoTestFiles(dir string) bool {
 	found := false
 	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || found {
+		if err != nil {
 			return nil
+		}
+		if found {
+			return filepath.SkipAll
 		}
 		if d.IsDir() {
 			name := d.Name()
