@@ -264,20 +264,34 @@ func (s *Store) Prune() error {
 
 // ClearProject removes all cached data for a project.
 func (s *Store) ClearProject(projectHash string) error {
-	if _, err := s.db.Exec(`DELETE FROM graph_cache WHERE project_hash = ?`, projectHash); err != nil {
+	tx, err := s.db.Begin()
+	if err != nil {
 		return err
 	}
-	_, err := s.db.Exec(`DELETE FROM injection_log WHERE project_hash = ?`, projectHash)
-	return err
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM graph_cache WHERE project_hash = ?`, projectHash); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM injection_log WHERE project_hash = ?`, projectHash); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // ClearAll removes all cached data.
 func (s *Store) ClearAll() error {
-	if _, err := s.db.Exec(`DELETE FROM graph_cache`); err != nil {
+	tx, err := s.db.Begin()
+	if err != nil {
 		return err
 	}
-	_, err := s.db.Exec(`DELETE FROM injection_log`)
-	return err
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM graph_cache`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM injection_log`); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // LastInjection returns the most recent injection for a project.
