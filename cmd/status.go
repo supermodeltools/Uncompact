@@ -14,6 +14,7 @@ import (
 	"github.com/supermodeltools/uncompact/internal/hooks"
 	"github.com/supermodeltools/uncompact/internal/local"
 	"github.com/supermodeltools/uncompact/internal/project"
+	"github.com/supermodeltools/uncompact/internal/snapshot"
 	tmpl "github.com/supermodeltools/uncompact/internal/template"
 	"github.com/supermodeltools/uncompact/internal/zip"
 )
@@ -273,6 +274,13 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 	defer wmCancel()
 	wm := project.GetWorkingMemory(wmCtx, proj.RootDir, logFn)
 
+	// Load session snapshot written by the PreCompact hook (if present and fresh).
+	// dry-run does NOT clear the snapshot — that is left for the real run command.
+	snap, snapErr := snapshot.Read(proj.RootDir)
+	if snapErr != nil {
+		fmt.Fprintf(os.Stderr, "[dry-run] WARNING: snapshot read error: %v\n", snapErr)
+	}
+
 	dbPath, err := config.DBPath()
 	if err != nil {
 		return err
@@ -298,11 +306,12 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 			fmt.Fprintln(os.Stderr, "[dry-run] serving cached graph")
 		}
 		opts := tmpl.RenderOptions{
-			MaxTokens:     maxTokens,
-			Stale:         !fresh,
-			StaleAt:       fetchedAt,
-			WorkingMemory: wm,
-			ClaudeMD:      claudeMD,
+			MaxTokens:       maxTokens,
+			Stale:           !fresh,
+			StaleAt:         fetchedAt,
+			WorkingMemory:   wm,
+			SessionSnapshot: snap,
+			ClaudeMD:        claudeMD,
 		}
 		output, tokens, err := tmpl.Render(cachedGraph, proj.Name, opts)
 		if err != nil {
@@ -337,9 +346,10 @@ func dryRunHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	opts := tmpl.RenderOptions{
-		MaxTokens:     maxTokens,
-		WorkingMemory: wm,
-		ClaudeMD:      claudeMD,
+		MaxTokens:       maxTokens,
+		WorkingMemory:   wm,
+		SessionSnapshot: snap,
+		ClaudeMD:        claudeMD,
 	}
 	output, tokens, err := tmpl.Render(graph, proj.Name, opts)
 	if err != nil {
@@ -370,6 +380,13 @@ func dryRunLocalMode() error {
 	wmCtx, wmCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer wmCancel()
 	wm := project.GetWorkingMemory(wmCtx, proj.RootDir, logFn)
+
+	// Load session snapshot written by the PreCompact hook (if present and fresh).
+	// dry-run does NOT clear the snapshot — that is left for the real run command.
+	snap, snapErr := snapshot.Read(proj.RootDir)
+	if snapErr != nil {
+		fmt.Fprintf(os.Stderr, "[dry-run] WARNING: snapshot read error: %v\n", snapErr)
+	}
 
 	dbPath, err := config.DBPath()
 	if err != nil {
@@ -410,10 +427,11 @@ func dryRunLocalMode() error {
 
 	claudeMD := local.ReadClaudeMD(proj.RootDir)
 	opts := tmpl.RenderOptions{
-		MaxTokens:     maxTokens,
-		WorkingMemory: wm,
-		ClaudeMD:      claudeMD,
-		LocalMode:     true,
+		MaxTokens:       maxTokens,
+		WorkingMemory:   wm,
+		SessionSnapshot: snap,
+		ClaudeMD:        claudeMD,
+		LocalMode:       true,
 	}
 	output, tokens, err := tmpl.Render(graph, proj.Name, opts)
 	if err != nil {
