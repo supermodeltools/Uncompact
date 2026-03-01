@@ -261,8 +261,17 @@ func extractMessageText(content interface{}) string {
 		var parts []string
 		for _, item := range v {
 			if m, ok := item.(map[string]interface{}); ok {
+				// Text block
 				if t, ok := m["text"].(string); ok && t != "" {
 					parts = append(parts, t)
+				}
+				// Tool-use block — include file_path so it is picked up by looksLikeFilePath
+				if m["type"] == "tool_use" {
+					if input, ok := m["input"].(map[string]interface{}); ok {
+						if fp, ok := input["file_path"].(string); ok && fp != "" {
+							parts = append(parts, fp)
+						}
+					}
 				}
 			}
 		}
