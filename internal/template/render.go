@@ -197,7 +197,13 @@ func truncateToTokenBudget(
 
 	// Build a minimal required header
 	var hdr strings.Builder
-	hdr.WriteString(fmt.Sprintf("# Uncompact Context — %s\n\n", projectName))
+	hdr.WriteString(fmt.Sprintf("# Uncompact Context — %s\n", projectName))
+	// Session snapshot — immediately after title, before banner (mirrors full render ordering)
+	if snap != nil && snap.Content != "" {
+		hdr.WriteString(snap.Content)
+		hdr.WriteString("\n")
+	}
+	hdr.WriteString("\n")
 	// Emit timestamp + stale banner (mirrors the main template banner)
 	now := time.Now().UTC()
 	banner := fmt.Sprintf("> Injected by Uncompact at %s", now.Format("2006-01-02 15:04:05 UTC"))
@@ -236,16 +242,6 @@ func truncateToTokenBudget(
 
 	var sb strings.Builder
 	sb.WriteString(required)
-
-	// Session snapshot — high-priority: include before project structure if present
-	if snap != nil && snap.Content != "" {
-		section := "\n\n" + snap.Content
-		sectionTokens := CountTokens(section)
-		if sectionTokens <= remaining {
-			sb.WriteString(section)
-			remaining -= sectionTokens
-		}
-	}
 
 	// Include critical files section before domain map — it's high-priority read order context.
 	if len(graph.CriticalFiles) > 0 {
