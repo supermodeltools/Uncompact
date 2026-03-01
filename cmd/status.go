@@ -19,8 +19,8 @@ import (
 )
 
 var logsLimit int
-var logsProjectFlag bool
-var statsProjectFlag bool
+var logsProjectFlag string
+var statsProjectFlag string
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
@@ -62,8 +62,8 @@ var cacheProjectFlag bool
 
 func init() {
 	logsCmd.Flags().IntVar(&logsLimit, "tail", 20, "Number of recent log entries to show")
-	logsCmd.Flags().BoolVar(&logsProjectFlag, "project", false, "Show logs for the current project only")
-	statsCmd.Flags().BoolVar(&statsProjectFlag, "project", false, "Show stats for the current project only")
+	logsCmd.Flags().StringVar(&logsProjectFlag, "project", "", "Filter logs to a specific project path (use '.' for current directory)")
+	statsCmd.Flags().StringVar(&statsProjectFlag, "project", "", "Filter stats to a specific project path (use '.' for current directory)")
 	cacheCmd.AddCommand(cacheClearCmd)
 	cacheClearCmd.Flags().BoolVar(&cacheProjectFlag, "project", false, "Clear only the current project's cache")
 	rootCmd.AddCommand(statusCmd, logsCmd, statsCmd, dryRunCmd, cacheCmd)
@@ -156,10 +156,10 @@ func logsHandler(cmd *cobra.Command, args []string) error {
 	defer store.Close()
 
 	var projectHash string
-	if logsProjectFlag {
+	if logsProjectFlag != "" {
 		gitCtx, gitCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer gitCancel()
-		proj, err := project.Detect(gitCtx, "")
+		proj, err := project.Detect(gitCtx, logsProjectFlag)
 		if err != nil {
 			return fmt.Errorf("project detection failed: %w", err)
 		}
@@ -207,10 +207,10 @@ func statsHandler(cmd *cobra.Command, args []string) error {
 	defer store.Close()
 
 	var projectHash string
-	if statsProjectFlag {
+	if statsProjectFlag != "" {
 		gitCtx, gitCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer gitCancel()
-		proj, err := project.Detect(gitCtx, "")
+		proj, err := project.Detect(gitCtx, statsProjectFlag)
 		if err != nil {
 			return fmt.Errorf("project detection failed: %w", err)
 		}
