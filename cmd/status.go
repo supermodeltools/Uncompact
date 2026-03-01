@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,7 +23,7 @@ import (
 var logsLimit int
 var logsProjectFlag string
 var statsProjectFlag string
-var statsSince time.Duration
+var statsSinceStr string
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
@@ -66,7 +67,7 @@ func init() {
 	logsCmd.Flags().IntVar(&logsLimit, "tail", 20, "Number of recent log entries to show")
 	logsCmd.Flags().StringVar(&logsProjectFlag, "project", "", "Filter logs to a specific project path (use '.' for current directory)")
 	statsCmd.Flags().StringVar(&statsProjectFlag, "project", "", "Filter stats to a specific project path (use '.' for current directory)")
-	statsCmd.Flags().DurationVar(&statsSince, "since", 0, "Only count injections from the last N (e.g. 7d, 24h, 30m); 0 means all time")
+	statsCmd.Flags().StringVar(&statsSinceStr, "since", "", "Only count injections from the last N (e.g. 7d, 24h, 30m); empty or 0 means all time")
 	cacheCmd.AddCommand(cacheClearCmd)
 	cacheClearCmd.Flags().StringVar(&cacheProjectFlag, "project", "", "Clear only the cache for this project path (use '.' for current directory)")
 	rootCmd.AddCommand(statusCmd, logsCmd, statsCmd, dryRunCmd, cacheCmd)
@@ -222,9 +223,15 @@ func statsHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	var sincePtr *time.Time
-	if statsSince > 0 {
-		t := time.Now().Add(-statsSince)
-		sincePtr = &t
+	if statsSinceStr != "" && statsSinceStr != "0" {
+		d, err := parseSinceDuration(statsSinceStr)
+		if err != nil {
+			return err
+		}
+		if d > 0 {
+			t := time.Now().Add(-d)
+			sincePtr = &t
+		}
 	}
 	st, err := store.GetStats(projectHash, sincePtr)
 	if err != nil {
@@ -507,6 +514,19 @@ func formatCacheStatus(hasGraph bool, fresh bool, expiresAt *time.Time, now time
 		return fmt.Sprintf("stale (expired %s ago, will refresh on next run)", humanDuration(now.Sub(*expiresAt)))
 	}
 	return "stale (will refresh on next run)"
+}
+
+// parseSinceDuration extends time.ParseDuration to support "d" as a day unit.
+// e.g. "7d" → 168h, "1.5d" → 36h. All other units are passed to time.ParseDuration.
+func parseSinceDuration(s string) (time.Duration, error) {
+	if len(s) > 1 && s[len(s)-1] == 'd' {
+		n, err := strconv.ParseFloat(s[:len(s)-1], 64)
+		if err != nil || n < 0 {
+			return 0, fmt.Errorf("invalid duration %q", s)
+		}
+		return time.Duration(n * float64(24*time.Hour)), nil
+	}
+	return time.ParseDuration(s)
 }
 
 func humanDuration(d time.Duration) string {
