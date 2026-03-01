@@ -125,7 +125,9 @@ func statusHandler(cmd *cobra.Command, args []string) error {
 
 	// Last injection
 	last, err := store.LastInjection(proj.Hash)
-	if err != nil || last == nil {
+	if err != nil {
+		fmt.Printf("Last injection: error querying DB (%v)\n", err)
+	} else if last == nil {
 		fmt.Println("Last injection: never")
 	} else {
 		age := time.Since(last.CreatedAt)
