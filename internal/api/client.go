@@ -659,7 +659,9 @@ func (c *Client) ValidateKey(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("auth check failed: %w", err)
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body)
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+		c.logFn("[debug] ValidateKey: failed to drain response body: %v", err)
+	}
 
 	switch resp.StatusCode {
 	case http.StatusUnauthorized, http.StatusForbidden:
