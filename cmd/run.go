@@ -425,7 +425,9 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 	fmt.Print(output)
 
 	// Write to display cache so the UserPromptSubmit hook (show-cache) can display it.
-	_ = writeDisplayCache(output)
+	if err := writeDisplayCache(output); err != nil {
+		logFn("[warn] display cache write error: %v", err)
+	}
 
 	// Write activity log entry (non-fatal on error).
 	_ = activitylog.Append(activitylog.Entry{
