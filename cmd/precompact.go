@@ -256,15 +256,41 @@ func extractMessageText(content interface{}) string {
 	return ""
 }
 
-// looksLikeFilePath is a simple heuristic for detecting file path tokens.
+// looksLikeFilePath is a heuristic for detecting local file path tokens.
+// It requires either an explicit relative/absolute path prefix, or a path
+// whose final segment carries a recognised source-file extension.  This
+// avoids false positives from Go import paths, domain names, and version
+// strings that also contain "/" and ".".
 func looksLikeFilePath(s string) bool {
 	if len(s) < 3 || len(s) > 200 {
 		return false
 	}
-	// Reject URL schemes so that https://... etc. are not treated as file paths
+	// Reject URL schemes so that https://... etc. are not treated as file paths.
 	if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") || strings.HasPrefix(s, "ftp://") {
 		return false
 	}
-	// Must contain a slash and a dot to look like a file path
-	return strings.Contains(s, "/") && strings.Contains(s, ".")
+	// Explicit local path prefix — accept immediately.
+	if strings.HasPrefix(s, "/") || strings.HasPrefix(s, "./") || strings.HasPrefix(s, "../") {
+		return true
+	}
+	// For bare paths (no leading slash/dot) require the last path segment to
+	// carry a recognised source-file extension so that import paths such as
+	// "github.com/foo/bar" are not mistaken for file paths.
+	if !strings.Contains(s, "/") {
+		return false
+	}
+	knownExts := map[string]bool{
+		".go": true, ".py": true, ".ts": true, ".tsx": true, ".js": true,
+		".jsx": true, ".rs": true, ".md": true, ".json": true, ".yaml": true,
+		".yml": true, ".toml": true, ".rb": true, ".java": true, ".c": true,
+		".cpp": true, ".h": true, ".sh": true, ".bash": true, ".zsh": true,
+		".txt": true, ".csv": true, ".html": true, ".css": true, ".scss": true,
+		".proto": true, ".sql": true, ".tf": true, ".lock": true,
+	}
+	lastSeg := s[strings.LastIndex(s, "/")+1:]
+	dotIdx := strings.LastIndex(lastSeg, ".")
+	if dotIdx < 0 {
+		return false
+	}
+	return knownExts[lastSeg[dotIdx:]]
 }
