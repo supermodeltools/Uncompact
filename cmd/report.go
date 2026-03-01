@@ -147,7 +147,12 @@ func buildReportData(filtered []activitylog.Entry, windowLabel string) reportDat
 	for i := range filtered {
 		e := &filtered[i]
 		// Only count EventRun entries for compaction/delivery stats.
-		if e.EventType != activitylog.EventRun {
+		// Backward compatibility: old entries without event_type are EventRun.
+		eventType := e.EventType
+		if eventType == "" {
+			eventType = activitylog.EventRun
+		}
+		if eventType != activitylog.EventRun {
 			continue
 		}
 		runCount++
