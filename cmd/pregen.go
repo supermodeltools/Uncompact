@@ -97,8 +97,9 @@ func pregenHandler(cmd *cobra.Command, args []string) error {
 	// Acquire an exclusive file lock so that only one pregen instance makes the
 	// API call at a time. If another instance already holds the lock (i.e. it is
 	// mid-flight on the same long-poll job), exit silently rather than firing a
-	// redundant request.
-	lockPath := filepath.Join(filepath.Dir(dbPath), "pregen.lock")
+	// redundant request. The lock is scoped per project so concurrent pregens for
+	// different projects can proceed in parallel.
+	lockPath := filepath.Join(filepath.Dir(dbPath), fmt.Sprintf("pregen-%s.lock", proj.Hash))
 	unlock, acquired, err := acquirePregenLock(lockPath)
 	if err != nil {
 		logFn("[warn] lock error: %v", err)
@@ -186,8 +187,10 @@ func pregenLocalMode(logFn func(string, ...interface{})) error {
 
 	// Acquire an exclusive file lock so that only one pregen instance runs the
 	// local build at a time. If another instance already holds the lock (i.e. it
-	// is mid-flight on the same 30-second build), exit silently.
-	lockPath := filepath.Join(filepath.Dir(dbPath), "pregen.lock")
+	// is mid-flight on the same 30-second build), exit silently. The lock is
+	// scoped per project so concurrent pregens for different projects can proceed
+	// in parallel.
+	lockPath := filepath.Join(filepath.Dir(dbPath), fmt.Sprintf("pregen-%s.lock", proj.Hash))
 	unlock, acquired, err := acquirePregenLock(lockPath)
 	if err != nil {
 		logFn("[warn] lock error: %v", err)
