@@ -50,6 +50,10 @@ var ignoreDirs = map[string]bool{
 	".next":        true,
 	".nuxt":        true,
 	".turbo":       true,
+	"Pods":         true, // iOS / CocoaPods
+	"elm-stuff":    true, // Elm build cache
+	"_build":       true, // Elixir / OCaml build output
+	"env":          true, // Python virtualenv (alt to venv)
 }
 
 // extToLanguage maps common file extensions to language names.
