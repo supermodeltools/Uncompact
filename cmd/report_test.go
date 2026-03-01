@@ -22,6 +22,7 @@ func TestFormatThousands(t *testing.T) {
 		{999999, "999,999"},
 		{1000000, "1,000,000"},
 		{1000001, "1,000,001"},
+		{1_000_000_000, "1,000,000,000"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.want, func(t *testing.T) {

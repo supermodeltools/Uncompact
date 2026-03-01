@@ -253,6 +253,9 @@ func printReport(r reportData) error {
 
 // formatThousands formats an integer with comma separators (e.g. 42000 → "42,000").
 func formatThousands(n int) string {
+	if n >= 1_000_000_000 {
+		return fmt.Sprintf("%d,%03d,%03d,%03d", n/1_000_000_000, (n/1_000_000)%1_000, (n/1_000)%1_000, n%1_000)
+	}
 	if n >= 1_000_000 {
 		return fmt.Sprintf("%d,%03d,%03d", n/1_000_000, (n/1_000)%1_000, n%1_000)
 	}
