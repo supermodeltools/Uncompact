@@ -21,12 +21,28 @@ import (
 // deepDirs are top-level directories that should be grouped at two levels deep
 // (dir/subdir) instead of just dir, to preserve per-package structure.
 var deepDirs = map[string]bool{
+	// Go / generic
 	"internal": true,
 	"src":      true,
 	"pkg":      true,
 	"lib":      true,
 	"app":      true,
 	"cmd":      true,
+	// frontend / full-stack
+	"pages":       true, // Next.js, Ruby on Rails views
+	"routes":      true, // Remix, Express, React Router
+	"components":  true, // React, Vue, Angular
+	"hooks":       true, // React custom hooks
+	"store":       true, // Redux, Vuex, Zustand
+	"features":    true, // feature-slice design
+	"views":       true, // MVC views
+	"containers":  true, // React container pattern
+	"screens":     true, // React Native
+	"api":         true, // API route handlers
+	"controllers": true, // MVC controllers
+	"services":    true, // service layer
+	"middleware":  true, // Express/Koa/Django middleware
+	"handlers":    true, // HTTP handlers
 }
 
 // ignoreDirs are directory names excluded from analysis.
