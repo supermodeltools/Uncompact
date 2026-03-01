@@ -337,6 +337,12 @@ func buildDomainSection(d api.Domain) string {
 	if len(d.KeyFiles) > 0 {
 		sb.WriteString(fmt.Sprintf("**Key files:** %s\n", strings.Join(d.KeyFiles, ", ")))
 	}
+	if len(d.Responsibilities) > 0 {
+		sb.WriteString("**Responsibilities:**\n")
+		for _, r := range d.Responsibilities {
+			sb.WriteString(fmt.Sprintf("- %s\n", r))
+		}
+	}
 	if len(d.Subdomains) > 0 {
 		sb.WriteString("**Subdomains:**\n")
 		for _, s := range d.Subdomains {
@@ -346,6 +352,9 @@ func buildDomainSection(d api.Domain) string {
 				sb.WriteString(fmt.Sprintf("- %s\n", s.Name))
 			}
 		}
+	}
+	if len(d.DependsOn) > 0 {
+		sb.WriteString(fmt.Sprintf("**Depends on:** %s\n", strings.Join(d.DependsOn, ", ")))
 	}
 	return sb.String()
 }

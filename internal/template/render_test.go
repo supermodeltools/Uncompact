@@ -301,6 +301,40 @@ func TestTruncate_ExtremelySmallBudgetReturnsFallback(t *testing.T) {
 	}
 }
 
+func TestTruncate_ResponsibilitiesAndDependsOnIncluded(t *testing.T) {
+	// Domain with Responsibilities and DependsOn — these must survive truncation.
+	d := api.Domain{
+		Name:             "auth",
+		Description:      "Handles authentication",
+		Responsibilities: []string{"Verify credentials", "Issue tokens"},
+		DependsOn:        []string{"database", "cache"},
+	}
+	// Large second domain to force the truncation path (it gets dropped).
+	big := padDomain("big", 500)
+	graph := testGraph(d, big)
+
+	const budget = 300
+	result, tokens, err := truncateToTokenBudget(graph, "TestProject", budget, 0, nil, nil, "", false, false, "")
+	if err != nil {
+		t.Fatalf("truncateToTokenBudget error: %v", err)
+	}
+	if tokens > budget {
+		t.Errorf("tokens %d exceeds budget %d", tokens, budget)
+	}
+	if !strings.Contains(result, "Verify credentials") {
+		t.Errorf("Responsibilities must appear in truncated output; got:\n%s", result)
+	}
+	if !strings.Contains(result, "Issue tokens") {
+		t.Errorf("Responsibilities must appear in truncated output; got:\n%s", result)
+	}
+	if !strings.Contains(result, "Depends on:") {
+		t.Errorf("DependsOn header must appear in truncated output; got:\n%s", result)
+	}
+	if !strings.Contains(result, "database") {
+		t.Errorf("DependsOn items must appear in truncated output; got:\n%s", result)
+	}
+}
+
 func TestTruncate_DomainMapHeaderTokensAccounted(t *testing.T) {
 	// Regression test for issue #197.
 	// The "## Domain Map" header must be counted against the token budget when
