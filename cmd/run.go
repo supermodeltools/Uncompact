@@ -238,7 +238,19 @@ func runHandler(cmd *cobra.Command, args []string) error {
 	fmt.Print(output)
 
 	// Write to display cache so the UserPromptSubmit hook (show-cache) can display it.
-	if err := writeDisplayCache(output); err != nil {
+	// If --post-compact was set, write a clean version (without the acknowledgment note)
+	// so show-cache doesn't re-inject the stale instruction on the next user prompt.
+	cacheOutput := output
+	if postCompact {
+		cleanOpts := opts
+		cleanOpts.PostCompact = false
+		if clean, _, cleanErr := tmpl.Render(graph, proj.Name, cleanOpts); cleanErr == nil {
+			cacheOutput = clean
+		} else {
+			logFn("[warn] post-compact clean render error: %v", cleanErr)
+		}
+	}
+	if err := writeDisplayCache(cacheOutput); err != nil {
 		logFn("[warn] display cache write error: %v", err)
 	}
 
@@ -362,7 +374,17 @@ func runLocalMode(logFn func(string, ...interface{})) error {
 
 	fmt.Print(output)
 
-	if err := writeDisplayCache(output); err != nil {
+	cacheOutputLocal := output
+	if postCompact {
+		cleanOpts := opts
+		cleanOpts.PostCompact = false
+		if clean, _, cleanErr := tmpl.Render(graph, proj.Name, cleanOpts); cleanErr == nil {
+			cacheOutputLocal = clean
+		} else {
+			logFn("[warn] post-compact clean render error: %v", cleanErr)
+		}
+	}
+	if err := writeDisplayCache(cacheOutputLocal); err != nil {
 		logFn("[warn] display cache write error: %v", err)
 	}
 
@@ -428,7 +450,19 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 	fmt.Print(output)
 
 	// Write to display cache so the UserPromptSubmit hook (show-cache) can display it.
-	if err := writeDisplayCache(output); err != nil {
+	// If --post-compact was set, write a clean version (without the acknowledgment note)
+	// so show-cache doesn't re-inject the stale instruction on the next user prompt.
+	cacheOutputNoCache := output
+	if postCompact {
+		cleanOpts := opts
+		cleanOpts.PostCompact = false
+		if clean, _, cleanErr := tmpl.Render(graph, proj.Name, cleanOpts); cleanErr == nil {
+			cacheOutputNoCache = clean
+		} else {
+			logFn("[warn] post-compact clean render error: %v", cleanErr)
+		}
+	}
+	if err := writeDisplayCache(cacheOutputNoCache); err != nil {
 		logFn("[warn] display cache write error: %v", err)
 	}
 
