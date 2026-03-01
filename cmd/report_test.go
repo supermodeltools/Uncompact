@@ -173,20 +173,24 @@ func TestBuildReportData_HoursEstimation(t *testing.T) {
 	}
 }
 
-// TestBuildReportData_CompactionCount verifies that Compactions and ContextBombsDelivered
-// match the number of filtered entries.
+// TestBuildReportData_CompactionCount verifies that Compactions counts only entries where
+// SessionSnapshotPresent == true, while ContextBombsDelivered counts all filtered entries.
 func TestBuildReportData_CompactionCount(t *testing.T) {
 	entries := []activitylog.Entry{
-		{Project: "/a"},
-		{Project: "/b"},
+		{Project: "/a", SessionSnapshotPresent: true},
+		{Project: "/b", SessionSnapshotPresent: false},
+		{Project: "/c", SessionSnapshotPresent: true},
 	}
 
 	rpt := buildReportData(entries, "last 30 days")
 	if rpt.Compactions != 2 {
-		t.Errorf("Compactions = %d, want 2", rpt.Compactions)
+		t.Errorf("Compactions = %d, want 2 (snapshot-present entries only)", rpt.Compactions)
 	}
-	if rpt.ContextBombsDelivered != 2 {
-		t.Errorf("ContextBombsDelivered = %d, want 2", rpt.ContextBombsDelivered)
+	if rpt.ContextBombsDelivered != 3 {
+		t.Errorf("ContextBombsDelivered = %d, want 3 (all entries)", rpt.ContextBombsDelivered)
+	}
+	if rpt.Compactions == rpt.ContextBombsDelivered {
+		t.Errorf("Compactions (%d) should not equal ContextBombsDelivered (%d) when only some entries have snapshots", rpt.Compactions, rpt.ContextBombsDelivered)
 	}
 }
 

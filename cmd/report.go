@@ -192,7 +192,7 @@ func buildReportData(filtered []activitylog.Entry, windowLabel string) reportDat
 
 	return reportData{
 		Window:                windowLabel,
-		Compactions:           len(filtered),
+		Compactions:           snapshots,
 		ContextBombsDelivered: len(filtered),
 		SessionSnapshotsSaved: snapshots,
 		TotalContextBombBytes: totalBytes,
