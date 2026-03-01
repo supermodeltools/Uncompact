@@ -78,10 +78,14 @@ func reportHandler(cmd *cobra.Command, args []string) error {
 		windowLabel = fmt.Sprintf("last %d days", reportDays)
 	}
 
-	// Normalize project filter to clean absolute path for comparison.
+	// Normalize project filter to an absolute path for comparison.
 	var filterProject string
 	if reportProject != "" {
-		filterProject = filepath.Clean(reportProject)
+		if abs, err := filepath.Abs(reportProject); err == nil {
+			filterProject = abs
+		} else {
+			filterProject = filepath.Clean(reportProject)
+		}
 	}
 
 	filtered := filterEntries(entries, since, filterProject)
@@ -121,7 +125,7 @@ func reportHandler(cmd *cobra.Command, args []string) error {
 }
 
 // filterEntries returns the subset of entries within the time window and matching project.
-// A zero since means no time filter (all-time mode). filterProject must already be filepath.Clean'd.
+// A zero since means no time filter (all-time mode). filterProject must already be an absolute path.
 func filterEntries(entries []activitylog.Entry, since time.Time, filterProject string) []activitylog.Entry {
 	var filtered []activitylog.Entry
 	for _, e := range entries {
