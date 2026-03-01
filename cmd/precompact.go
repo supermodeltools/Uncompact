@@ -263,6 +263,26 @@ func extractMessageText(content interface{}) string {
 	return ""
 }
 
+// knownSourceExts is the set of file extensions recognised as local source files.
+var knownSourceExts = map[string]bool{
+	".go": true, ".py": true, ".ts": true, ".tsx": true, ".js": true,
+	".jsx": true, ".rs": true, ".md": true, ".json": true, ".yaml": true,
+	".yml": true, ".toml": true, ".rb": true, ".java": true, ".c": true,
+	".cpp": true, ".h": true, ".sh": true, ".bash": true, ".zsh": true,
+	".txt": true, ".csv": true, ".html": true, ".css": true, ".scss": true,
+	".proto": true, ".sql": true, ".tf": true, ".lock": true,
+}
+
+// hasKnownExt returns true if s ends with a recognised source-file extension.
+func hasKnownExt(s string) bool {
+	lastSeg := s[strings.LastIndex(s, "/")+1:]
+	dotIdx := strings.LastIndex(lastSeg, ".")
+	if dotIdx < 0 {
+		return false
+	}
+	return knownSourceExts[lastSeg[dotIdx:]]
+}
+
 // looksLikeFilePath is a heuristic for detecting local file path tokens.
 // It requires either an explicit relative/absolute path prefix, or a path
 // whose final segment carries a recognised source-file extension.  This
@@ -276,13 +296,14 @@ func looksLikeFilePath(s string) bool {
 	if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") || strings.HasPrefix(s, "ftp://") {
 		return false
 	}
-	// Explicit local path prefix — accept immediately.
+	// Explicit local path prefix — require a recognised extension so that
+	// /dev/null, /etc/hosts, /usr/bin/python, shell redirects, etc. are excluded.
 	if strings.HasPrefix(s, "/") || strings.HasPrefix(s, "./") || strings.HasPrefix(s, "../") {
-		return true
+		return hasKnownExt(s)
 	}
 	// Windows absolute path: C:\ or C:/
 	if len(s) >= 3 && s[1] == ':' && (s[2] == '/' || s[2] == '\\') {
-		return true
+		return hasKnownExt(s)
 	}
 	// For bare paths (no leading slash/dot) require the last path segment to
 	// carry a recognised source-file extension so that import paths such as
@@ -296,18 +317,5 @@ func looksLikeFilePath(s string) bool {
 	if strings.Contains(firstSeg, ".") {
 		return false
 	}
-	knownExts := map[string]bool{
-		".go": true, ".py": true, ".ts": true, ".tsx": true, ".js": true,
-		".jsx": true, ".rs": true, ".md": true, ".json": true, ".yaml": true,
-		".yml": true, ".toml": true, ".rb": true, ".java": true, ".c": true,
-		".cpp": true, ".h": true, ".sh": true, ".bash": true, ".zsh": true,
-		".txt": true, ".csv": true, ".html": true, ".css": true, ".scss": true,
-		".proto": true, ".sql": true, ".tf": true, ".lock": true,
-	}
-	lastSeg := s[strings.LastIndex(s, "/")+1:]
-	dotIdx := strings.LastIndex(lastSeg, ".")
-	if dotIdx < 0 {
-		return false
-	}
-	return knownExts[lastSeg[dotIdx:]]
+	return hasKnownExt(s)
 }
