@@ -149,8 +149,14 @@ func Install(settingsPath string, dryRun bool) (*InstallResult, error) {
 	merged := mergeHooks(existingHooks, uncompactHooks)
 
 	// Build diff
-	oldHooksJSON, _ := json.MarshalIndent(existingHooks, "", "  ")
-	newHooksJSON, _ := json.MarshalIndent(merged, "", "  ")
+	oldHooksJSON, err := json.MarshalIndent(existingHooks, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshaling existing hooks for diff: %w", err)
+	}
+	newHooksJSON, err := json.MarshalIndent(merged, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshaling merged hooks for diff: %w", err)
+	}
 	result.Diff = buildDiff(string(oldHooksJSON), string(newHooksJSON))
 
 	if dryRun {
@@ -358,8 +364,14 @@ func Uninstall(settingsPath string, dryRun bool) (*UninstallResult, error) {
 
 	filtered := removeUncompactHooks(existingHooks)
 
-	oldHooksJSON, _ := json.MarshalIndent(existingHooks, "", "  ")
-	newHooksJSON, _ := json.MarshalIndent(filtered, "", "  ")
+	oldHooksJSON, err := json.MarshalIndent(existingHooks, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshaling existing hooks for diff: %w", err)
+	}
+	newHooksJSON, err := json.MarshalIndent(filtered, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshaling filtered hooks for diff: %w", err)
+	}
 	result.Diff = buildDiff(string(oldHooksJSON), string(newHooksJSON))
 
 	if dryRun {
