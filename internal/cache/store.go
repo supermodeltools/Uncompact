@@ -168,17 +168,22 @@ func (s *Store) LogInjection(projectHash, projectName string, tokens int, source
 }
 
 // RecentLogs returns the most recent injection log entries.
-func (s *Store) RecentLogs(limit int) ([]InjectionLog, error) {
+// Pass a non-empty projectHash to filter by project.
+func (s *Store) RecentLogs(limit int, projectHash string) ([]InjectionLog, error) {
 	if limit <= 0 {
 		limit = 20
 	}
-	rows, err := s.db.Query(`
+	query := `
 		SELECT id, project_hash, project_name, tokens, source, stale_at, created_at
-		FROM injection_log
-		ORDER BY created_at DESC
-		LIMIT ?`,
-		limit,
-	)
+		FROM injection_log`
+	args := []interface{}{}
+	if projectHash != "" {
+		query += " WHERE project_hash = ?"
+		args = append(args, projectHash)
+	}
+	query += " ORDER BY created_at DESC LIMIT ?"
+	args = append(args, limit)
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
