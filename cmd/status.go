@@ -526,7 +526,14 @@ func parseSinceDuration(s string) (time.Duration, error) {
 		}
 		return time.Duration(n * float64(24*time.Hour)), nil
 	}
-	return time.ParseDuration(s)
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, err
+	}
+	if d < 0 {
+		return 0, fmt.Errorf("invalid duration %q", s)
+	}
+	return d, nil
 }
 
 func humanDuration(d time.Duration) string {
