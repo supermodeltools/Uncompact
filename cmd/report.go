@@ -98,7 +98,9 @@ func reportHandler(cmd *cobra.Command, args []string) error {
 			}
 			var projectHash string
 			if filterProject != "" {
-				if info, err := project.Detect(context.Background(), filterProject); err == nil {
+				gitCtx, gitCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer gitCancel()
+				if info, err := project.Detect(gitCtx, filterProject); err == nil {
 					projectHash = info.Hash
 				}
 			}
