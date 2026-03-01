@@ -321,6 +321,7 @@ func runHandler(cmd *cobra.Command, args []string) error {
 
 	// Write activity log entry (non-fatal on error).
 	_ = activitylog.Append(activitylog.Entry{
+		EventType:              activitylog.EventRun,
 		Timestamp:              time.Now().UTC(),
 		Project:                proj.RootDir,
 		ContextBombSizeBytes:   len(output),
@@ -455,6 +456,7 @@ func runLocalMode(logFn func(string, ...interface{})) error {
 
 	// Write activity log entry (non-fatal on error).
 	_ = activitylog.Append(activitylog.Entry{
+		EventType:              activitylog.EventRun,
 		Timestamp:              time.Now().UTC(),
 		Project:                proj.RootDir,
 		ContextBombSizeBytes:   len(output),
@@ -533,6 +535,7 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 
 	// Write activity log entry (non-fatal on error).
 	_ = activitylog.Append(activitylog.Entry{
+		EventType:              activitylog.EventRun,
 		Timestamp:              time.Now().UTC(),
 		Project:                proj.RootDir,
 		ContextBombSizeBytes:   len(output),

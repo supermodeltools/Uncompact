@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/supermodeltools/uncompact/internal/activitylog"
 	"github.com/supermodeltools/uncompact/internal/project"
 	"github.com/supermodeltools/uncompact/internal/snapshot"
 )
@@ -86,6 +87,13 @@ func preCompactHandler(cmd *cobra.Command, args []string) error {
 		logFn("[warn] pre-compact: writing snapshot: %v", err)
 		return silentExit()
 	}
+
+	// Write activity log entry (non-fatal on error).
+	_ = activitylog.Append(activitylog.Entry{
+		EventType: activitylog.EventPreCompact,
+		Timestamp: time.Now().UTC(),
+		Project:   proj.RootDir,
+	})
 
 	logFn("[debug] pre-compact: snapshot written to %s", snapshot.Path(proj.RootDir))
 	return nil

@@ -141,10 +141,16 @@ func buildReportData(filtered []activitylog.Entry, windowLabel string) reportDat
 	projectCounts := make(map[string]int)
 	totalBytes := 0
 	snapshots := 0
+	runCount := 0
 	var lastEntry *activitylog.Entry
 
 	for i := range filtered {
 		e := &filtered[i]
+		// Only count EventRun entries for compaction/delivery stats.
+		if e.EventType != activitylog.EventRun {
+			continue
+		}
+		runCount++
 		projectCounts[e.Project]++
 		totalBytes += e.ContextBombSizeBytes
 		if e.SessionSnapshotPresent {
@@ -182,7 +188,7 @@ func buildReportData(filtered []activitylog.Entry, windowLabel string) reportDat
 	// Fallback: each context bomb is ~4 bytes per token. Overridden by exact DB data in reportHandler.
 	estimatedTokens := totalBytes / 4
 	// Each compaction saved ~10 minutes of manual context recovery.
-	estimatedHours := float64(len(filtered)) * 10.0 / 60.0
+	estimatedHours := float64(runCount) * 10.0 / 60.0
 
 	var lastTime *time.Time
 	var lastPath string
@@ -194,8 +200,8 @@ func buildReportData(filtered []activitylog.Entry, windowLabel string) reportDat
 
 	return reportData{
 		Window:                windowLabel,
-		Compactions:           len(filtered),
-		ContextBombsDelivered: len(filtered),
+		Compactions:           runCount,
+		ContextBombsDelivered: runCount,
 		SessionSnapshotsSaved: snapshots,
 		TotalContextBombBytes: totalBytes,
 		TotalTokens:           estimatedTokens,

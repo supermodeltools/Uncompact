@@ -14,10 +14,16 @@ import (
 const (
 	maxLogSize = 5 * 1024 * 1024 // 5MB hard cap before rotation
 	rotateKeep = 2 * 1024 * 1024 // bytes to retain after rotation
+
+	// EventRun is logged when a context bomb is successfully delivered.
+	EventRun = "run"
+	// EventPreCompact is logged when the PreCompact hook writes a session snapshot.
+	EventPreCompact = "pre_compact"
 )
 
-// Entry records a single PostCompact event.
+// Entry records a single activity log event.
 type Entry struct {
+	EventType              string    `json:"event_type,omitempty"`
 	Timestamp              time.Time `json:"timestamp"`
 	Project                string    `json:"project"`
 	ContextBombSizeBytes   int       `json:"context_bomb_size_bytes"`
@@ -131,6 +137,10 @@ func ReadAll() ([]Entry, error) {
 		var e Entry
 		if err := json.Unmarshal(line, &e); err != nil {
 			continue // skip malformed lines
+		}
+		// Backward compatibility: old entries without event_type are EventRun.
+		if e.EventType == "" {
+			e.EventType = EventRun
 		}
 		entries = append(entries, e)
 	}
