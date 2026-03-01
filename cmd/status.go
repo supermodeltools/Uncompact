@@ -22,6 +22,7 @@ import (
 var logsLimit int
 var logsProjectFlag string
 var statsProjectFlag string
+var statsSince time.Duration
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
@@ -65,6 +66,7 @@ func init() {
 	logsCmd.Flags().IntVar(&logsLimit, "tail", 20, "Number of recent log entries to show")
 	logsCmd.Flags().StringVar(&logsProjectFlag, "project", "", "Filter logs to a specific project path (use '.' for current directory)")
 	statsCmd.Flags().StringVar(&statsProjectFlag, "project", "", "Filter stats to a specific project path (use '.' for current directory)")
+	statsCmd.Flags().DurationVar(&statsSince, "since", 0, "Only count injections from the last N (e.g. 7d, 24h, 30m); 0 means all time")
 	cacheCmd.AddCommand(cacheClearCmd)
 	cacheClearCmd.Flags().StringVar(&cacheProjectFlag, "project", "", "Clear only the cache for this project path (use '.' for current directory)")
 	rootCmd.AddCommand(statusCmd, logsCmd, statsCmd, dryRunCmd, cacheCmd)
@@ -219,7 +221,12 @@ func statsHandler(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Showing stats for project: %s\n\n", proj.Name)
 	}
 
-	st, err := store.GetStats(projectHash, nil)
+	var sincePtr *time.Time
+	if statsSince > 0 {
+		t := time.Now().Add(-statsSince)
+		sincePtr = &t
+	}
+	st, err := store.GetStats(projectHash, sincePtr)
 	if err != nil {
 		return err
 	}
