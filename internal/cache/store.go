@@ -258,13 +258,20 @@ func (s *Store) GetStats(projectHash string, since *time.Time) (*Stats, error) {
 
 // Prune removes graph cache entries older than maxAge and injection logs older than 90 days.
 func (s *Store) Prune() error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 	cutoff := time.Now().Add(-defaultMaxAge)
-	if _, err := s.db.Exec(`DELETE FROM graph_cache WHERE fetched_at < ?`, cutoff); err != nil {
+	if _, err := tx.Exec(`DELETE FROM graph_cache WHERE fetched_at < ?`, cutoff); err != nil {
 		return err
 	}
 	logCutoff := time.Now().Add(-90 * 24 * time.Hour)
-	_, err := s.db.Exec(`DELETE FROM injection_log WHERE created_at < ?`, logCutoff)
-	return err
+	if _, err := tx.Exec(`DELETE FROM injection_log WHERE created_at < ?`, logCutoff); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // ClearProject removes all cached data for a project.
