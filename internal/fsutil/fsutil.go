@@ -1,9 +1,7 @@
 package fsutil
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,13 +22,8 @@ func FileExists(path string) bool {
 func BuildGitFileSet(ctx context.Context, root string) map[string]bool {
 	cmd := exec.CommandContext(ctx, "git", "ls-files", "--cached", "--others", "--exclude-standard")
 	cmd.Dir = root
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		if msg := strings.TrimSpace(stderr.String()); msg != "" {
-			fmt.Fprintf(os.Stderr, "git ls-files: %s\n", msg)
-		}
 		return nil
 	}
 
