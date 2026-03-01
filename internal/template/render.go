@@ -18,6 +18,7 @@ var rendererTmpl = gotmpl.Must(
 		"join":         strings.Join,
 		"languageList": func(langs []string) string { return strings.Join(langs, ", ") },
 		"add1":         func(i int) int { return i + 1 },
+		"blockquote":   func(s string) string { return strings.ReplaceAll(s, "\n", "\n> ") },
 	}).Parse(contextBombTmpl),
 )
 
@@ -70,7 +71,7 @@ const contextBombTmpl = `# Uncompact Context — {{.ProjectName}}
 **Branch:** {{.WorkingMemory.Branch}}
 {{- if .WorkingMemory.IssueNumber}}
 **Issue #{{.WorkingMemory.IssueNumber}}:** {{.WorkingMemory.IssueTitle}}{{if .WorkingMemory.IssueBody}}
-> {{.WorkingMemory.IssueBody}}{{end}}
+> {{.WorkingMemory.IssueBody | blockquote}}{{end}}
 {{- end}}{{- if .WorkingMemory.ChangedFiles}}
 **Changes on branch (vs {{.WorkingMemory.DefaultBranch}}):**
 {{range .WorkingMemory.ChangedFiles}}  {{.}}
@@ -385,7 +386,7 @@ func buildWorkingMemorySection(wm *project.WorkingMemory, budget int) string {
 
 	var issueBodySection string
 	if wm.IssueBody != "" {
-		issueBodySection = fmt.Sprintf("> %s\n", wm.IssueBody)
+		issueBodySection = fmt.Sprintf("> %s\n", strings.ReplaceAll(wm.IssueBody, "\n", "\n> "))
 	}
 
 	var uncommittedSection string
