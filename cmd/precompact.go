@@ -105,6 +105,8 @@ func buildSnapshotContent(transcriptPath string, logFn func(string, ...interface
 	}
 	defer f.Close()
 
+	const maxFilesInFocusBuffer = 200
+
 	var userMessages []string
 	var filesInFocus []string
 
@@ -159,10 +161,15 @@ func buildSnapshotContent(transcriptPath string, logFn func(string, ...interface
 
 		// Extract file paths from any message, appending each occurrence so
 		// that re-referenced paths move toward the end of the slice.
+		// Cap the buffer to avoid unbounded growth on long transcripts; evict
+		// from the front to preserve "most recent references" semantics.
 		for _, word := range strings.Fields(text) {
 			word = strings.Trim(word, "`,\"'()[]")
 			if looksLikeFilePath(word) {
 				filesInFocus = append(filesInFocus, word)
+				if len(filesInFocus) > maxFilesInFocusBuffer {
+					filesInFocus = filesInFocus[len(filesInFocus)-maxFilesInFocusBuffer:]
+				}
 			}
 		}
 	}
