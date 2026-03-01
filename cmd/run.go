@@ -417,7 +417,9 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 
 	// Clear the session snapshot after it has been injected into the context bomb.
 	if snap != nil {
-		_ = snapshot.Clear(proj.RootDir)
+		if clearErr := snapshot.Clear(proj.RootDir); clearErr != nil {
+			logFn("[warn] snapshot clear error: %v", clearErr)
+		}
 	}
 
 	fmt.Print(output)
