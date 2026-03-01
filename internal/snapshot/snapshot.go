@@ -30,7 +30,7 @@ func Path(projectRoot string) string {
 // Write persists a session snapshot to the project's .uncompact directory.
 func Write(projectRoot string, snap *SessionSnapshot) error {
 	dir := filepath.Join(projectRoot, snapshotDir)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("creating snapshot directory: %w", err)
 	}
 
