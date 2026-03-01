@@ -17,6 +17,17 @@ import (
 	"github.com/supermodeltools/uncompact/internal/api"
 )
 
+// deepDirs are top-level directories that should be grouped at two levels deep
+// (dir/subdir) instead of just dir, to preserve per-package structure.
+var deepDirs = map[string]bool{
+	"internal": true,
+	"src":      true,
+	"pkg":      true,
+	"lib":      true,
+	"app":      true,
+	"cmd":      true,
+}
+
 // ignoreDirs are directory names excluded from analysis.
 var ignoreDirs = map[string]bool{
 	".git":         true,
@@ -161,11 +172,16 @@ func collectFiles(ctx context.Context, rootDir string) (extCounts map[string]int
 		}
 		total++
 
-		// Group by top-level directory; root-level files use an empty string key.
-		parts := strings.SplitN(rel, string(filepath.Separator), 2)
+		// Group by directory. For well-known aggregator dirs (e.g. "internal",
+		// "src"), use a two-level key (dir/subdir) to preserve per-package
+		// structure. Root-level files use an empty string key.
+		parts := strings.SplitN(rel, string(filepath.Separator), 3)
 		dir := ""
 		if len(parts) > 1 {
 			dir = parts[0]
+			if deepDirs[dir] && len(parts) > 2 {
+				dir = parts[0] + string(filepath.Separator) + parts[1]
+			}
 		}
 		dirFiles[dir] = append(dirFiles[dir], rel)
 
@@ -235,15 +251,22 @@ func readDescription(rootDir string) string {
 	return ""
 }
 
-// buildDomains groups files by top-level directory and creates one Domain per group.
+// buildDomains groups files by directory key and creates one Domain per group.
+// Groups are capped at maxDomains to avoid overwhelming the context bomb.
 func buildDomains(dirFiles map[string][]string) []api.Domain {
 	const maxKeyFiles = 8
+	const maxDomains = 20
 
 	var dirs []string
 	for dir := range dirFiles {
 		dirs = append(dirs, dir)
 	}
 	sort.Strings(dirs)
+
+	// Cap the number of directories to keep the domain list manageable.
+	if len(dirs) > maxDomains {
+		dirs = dirs[:maxDomains]
+	}
 
 	var domains []api.Domain
 	for _, dir := range dirs {
