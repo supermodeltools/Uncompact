@@ -115,18 +115,24 @@ func TestFilterEntries_Empty(t *testing.T) {
 	}
 }
 
-// TestBuildReportData_SnapshotCount verifies that SessionSnapshotsSaved counts only entries
-// where SessionSnapshotPresent == true.
+// TestBuildReportData_SnapshotCount verifies that SessionSnapshotsSaved counts EventPreCompact
+// entries, not EventRun entries with SessionSnapshotPresent set.
 func TestBuildReportData_SnapshotCount(t *testing.T) {
 	entries := []activitylog.Entry{
-		{Project: "/a", SessionSnapshotPresent: true, ContextBombSizeBytes: 100},
-		{Project: "/b", SessionSnapshotPresent: false, ContextBombSizeBytes: 200},
-		{Project: "/c", SessionSnapshotPresent: true, ContextBombSizeBytes: 300},
+		{Project: "/a", EventType: activitylog.EventPreCompact},
+		{Project: "/b", EventType: activitylog.EventPreCompact},
+		{Project: "/c", EventType: activitylog.EventPreCompact},
+		{Project: "/d", SessionSnapshotPresent: true, ContextBombSizeBytes: 100},  // EventRun, should not count
+		{Project: "/e", SessionSnapshotPresent: false, ContextBombSizeBytes: 200}, // EventRun, should not count
 	}
 
 	rpt := buildReportData(entries, "last 30 days")
-	if rpt.SessionSnapshotsSaved != 2 {
-		t.Errorf("SessionSnapshotsSaved = %d, want 2", rpt.SessionSnapshotsSaved)
+	if rpt.SessionSnapshotsSaved != 3 {
+		t.Errorf("SessionSnapshotsSaved = %d, want 3 (EventPreCompact entries only)", rpt.SessionSnapshotsSaved)
+	}
+	// EventPreCompact entries must not inflate ContextBombsDelivered.
+	if rpt.ContextBombsDelivered != 2 {
+		t.Errorf("ContextBombsDelivered = %d, want 2 (EventRun entries only)", rpt.ContextBombsDelivered)
 	}
 }
 

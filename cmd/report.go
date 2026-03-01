@@ -146,16 +146,22 @@ func buildReportData(filtered []activitylog.Entry, windowLabel string) reportDat
 	totalBytes := 0
 	snapshots := 0
 	runCount := 0
+	preCompactCount := 0
 	var lastEntry *activitylog.Entry
 
 	for i := range filtered {
 		e := &filtered[i]
-		// Only count EventRun entries for compaction/delivery stats.
 		// Backward compatibility: old entries without event_type are EventRun.
 		eventType := e.EventType
 		if eventType == "" {
 			eventType = activitylog.EventRun
 		}
+		// Count EventPreCompact entries separately for SessionSnapshotsSaved.
+		if eventType == activitylog.EventPreCompact {
+			preCompactCount++
+			continue
+		}
+		// Skip any other non-EventRun entries.
 		if eventType != activitylog.EventRun {
 			continue
 		}
@@ -211,7 +217,7 @@ func buildReportData(filtered []activitylog.Entry, windowLabel string) reportDat
 		Window:                windowLabel,
 		Compactions:           snapshots,
 		ContextBombsDelivered: runCount,
-		SessionSnapshotsSaved: snapshots,
+		SessionSnapshotsSaved: preCompactCount,
 		TotalContextBombBytes: totalBytes,
 		TotalTokens:           estimatedTokens,
 		EstimatedHoursSaved:   estimatedHours,
