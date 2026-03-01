@@ -196,7 +196,7 @@ func statsHandler(cmd *cobra.Command, args []string) error {
 	}
 	defer store.Close()
 
-	st, err := store.GetStats("")
+	st, err := store.GetStats("", nil)
 	if err != nil {
 		return err
 	}

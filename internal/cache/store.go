@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/supermodeltools/uncompact/internal/api"
@@ -210,7 +211,8 @@ type Stats struct {
 }
 
 // GetStats returns aggregate injection statistics.
-func (s *Store) GetStats(projectHash string) (*Stats, error) {
+// Pass a non-empty projectHash to filter by project, and a non-nil since to filter by time.
+func (s *Store) GetStats(projectHash string, since *time.Time) (*Stats, error) {
 	query := `
 		SELECT
 			COUNT(*) as total,
@@ -221,10 +223,18 @@ func (s *Store) GetStats(projectHash string) (*Stats, error) {
 			COALESCE(SUM(tokens), 0) as total_tokens,
 			AVG(tokens) as avg_tokens
 		FROM injection_log`
+	var conditions []string
 	args := []interface{}{}
 	if projectHash != "" {
-		query += " WHERE project_hash = ?"
+		conditions = append(conditions, "project_hash = ?")
 		args = append(args, projectHash)
+	}
+	if since != nil {
+		conditions = append(conditions, "created_at >= ?")
+		args = append(args, *since)
+	}
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
 
 	var st Stats
