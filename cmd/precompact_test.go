@@ -44,6 +44,10 @@ func TestLooksLikeFilePath_Negative(t *testing.T) {
 		{"semver with v prefix", "v1.2.3"},
 		{"no slash", "filename.go"},
 		{"no dot", "path/without/extension"},
+		{"go module import path with extension", "github.com/user/repo/pkg/server.go"},
+		{"go module import path nested", "golang.org/x/net/http2/hpack/hpack.go"},
+		{"go module import path no ext", "github.com/foo/bar"},
+		{"golang.org module path", "golang.org/x/text/encoding/charmap.go"},
 		{"too long (>200 chars)", func() string {
 			s := "/"
 			for i := 0; i < 200; i++ {

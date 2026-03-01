@@ -279,6 +279,12 @@ func looksLikeFilePath(s string) bool {
 	if !strings.Contains(s, "/") {
 		return false
 	}
+	// Reject domain-prefixed paths: "github.com/...", "golang.org/...", etc.
+	// Local paths never have a dot in the first path segment.
+	firstSeg := s[:strings.Index(s, "/")]
+	if strings.Contains(firstSeg, ".") {
+		return false
+	}
 	knownExts := map[string]bool{
 		".go": true, ".py": true, ".ts": true, ".tsx": true, ".js": true,
 		".jsx": true, ".rs": true, ".md": true, ".json": true, ".yaml": true,
