@@ -14,6 +14,8 @@ import (
 	"github.com/supermodeltools/uncompact/internal/snapshot"
 )
 
+const maxCyclesToShow = 10
+
 var rendererTmpl = gotmpl.Must(
 	gotmpl.New("context_bomb").Funcs(gotmpl.FuncMap{
 		"join":         strings.Join,
@@ -30,8 +32,9 @@ const contextBombTmpl = `# Uncompact Context — {{.ProjectName}}
 
 > Injected by Uncompact at {{.Timestamp}}{{if .LocalMode}} | local mode (set SUPERMODEL_API_KEY for AI-powered features){{end}}{{if .Stale}} | ⚠️ STALE: last updated {{.StaleDuration}}{{end}}
 {{- if .Graph.Stats.CircularDependencyCycles}}
-> ⚠️ {{.Graph.Stats.CircularDependencyCycles}} circular dependency {{if eq .Graph.Stats.CircularDependencyCycles 1}}cycle{{else}}cycles{{end}} detected{{range .Graph.Cycles}}
-> - {{join .Cycle " → "}}{{end}}
+> ⚠️ {{.Graph.Stats.CircularDependencyCycles}} circular dependency {{if eq .Graph.Stats.CircularDependencyCycles 1}}cycle{{else}}cycles{{end}} detected{{range .CappedCycles}}
+> - {{join .Cycle " → "}}{{end}}{{if .ExtraCycles}}
+> ... and {{.ExtraCycles}} more{{end}}
 {{- end}}
 {{- if and (not .LocalMode) (not .Graph.CircularDepsAnalyzed)}}
 > ⚠️ Circular dependency analysis unavailable
@@ -111,10 +114,19 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 		staleDuration = humanDuration(now.Sub(*opts.StaleAt))
 	}
 
+	cappedCycles := graph.Cycles
+	extraCycles := 0
+	if len(graph.Cycles) > maxCyclesToShow {
+		cappedCycles = graph.Cycles[:maxCyclesToShow]
+		extraCycles = len(graph.Cycles) - maxCyclesToShow
+	}
+
 	data := struct {
 		ProjectName     string
 		Timestamp       string
 		Graph           *api.ProjectGraph
+		CappedCycles    []api.CircularDependencyCycle
+		ExtraCycles     int
 		Stale           bool
 		StaleDuration   string
 		WorkingMemory   *project.WorkingMemory
@@ -125,6 +137,8 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 		ProjectName:     projectName,
 		Timestamp:       now.Format("2006-01-02 15:04:05 UTC"),
 		Graph:           graph,
+		CappedCycles:    cappedCycles,
+		ExtraCycles:     extraCycles,
 		Stale:           opts.Stale,
 		StaleDuration:   staleDuration,
 		WorkingMemory:   opts.WorkingMemory,
@@ -220,7 +234,11 @@ func truncateToTokenBudget(
 			label = "cycle"
 		}
 		hdr.WriteString(fmt.Sprintf("> ⚠️ %d circular dependency %s detected\n", circularCycles, label))
-		for _, c := range graph.Cycles {
+		for i, c := range graph.Cycles {
+			if i >= maxCyclesToShow {
+				hdr.WriteString(fmt.Sprintf("> ... and %d more\n", len(graph.Cycles)-maxCyclesToShow))
+				break
+			}
 			hdr.WriteString(fmt.Sprintf("> - %s\n", strings.Join(c.Cycle, " → ")))
 		}
 		hdr.WriteString("\n")
