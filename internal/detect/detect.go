@@ -166,6 +166,19 @@ func analyzeGo(dir string, info *RepoInfo) {
 func analyzeNode(dir string, info *RepoInfo) {
 	info.Language = "Node.js"
 
+	// Detect package manager from lockfiles.
+	var pkgMgr string
+	switch {
+	case fsutil.FileExists(filepath.Join(dir, "bun.lockb")):
+		pkgMgr = "bun"
+	case fsutil.FileExists(filepath.Join(dir, "pnpm-lock.yaml")):
+		pkgMgr = "pnpm"
+	case fsutil.FileExists(filepath.Join(dir, "yarn.lock")):
+		pkgMgr = "yarn"
+	default:
+		pkgMgr = "npm"
+	}
+
 	// Parse package.json.
 	if data, err := os.ReadFile(filepath.Join(dir, "package.json")); err == nil {
 		var pkg struct {
@@ -183,13 +196,13 @@ func analyzeNode(dir string, info *RepoInfo) {
 				info.Version = pkg.Engines.Node
 			}
 			if _, ok := pkg.Scripts["build"]; ok {
-				info.BuildCmd = "npm run build"
+				info.BuildCmd = pkgMgr + " run build"
 			}
 			if _, ok := pkg.Scripts["lint"]; ok {
-				info.LintCmd = "npm run lint"
+				info.LintCmd = pkgMgr + " run lint"
 			}
 			if _, ok := pkg.Scripts["test"]; ok {
-				info.TestCmd = "npm test"
+				info.TestCmd = pkgMgr + " test"
 			}
 		}
 	}

@@ -187,6 +187,95 @@ func TestAnalyze_Node_PrettierConfig(t *testing.T) {
 	}
 }
 
+func TestAnalyze_Node_YarnLock(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{
+		"name": "my-app",
+		"scripts": {
+			"build": "webpack",
+			"test": "jest",
+			"lint": "eslint ."
+		}
+	}`)
+	writeFile(t, dir, "yarn.lock", "# yarn lockfile v1\n")
+
+	info := Analyze(dir)
+
+	if info.BuildCmd != "yarn run build" {
+		t.Errorf("BuildCmd = %q, want %q", info.BuildCmd, "yarn run build")
+	}
+	if info.LintCmd != "yarn run lint" {
+		t.Errorf("LintCmd = %q, want %q", info.LintCmd, "yarn run lint")
+	}
+	if info.TestCmd != "yarn test" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "yarn test")
+	}
+}
+
+func TestAnalyze_Node_PnpmLock(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{
+		"name": "my-app",
+		"scripts": {
+			"build": "vite build",
+			"test": "vitest",
+			"lint": "eslint ."
+		}
+	}`)
+	writeFile(t, dir, "pnpm-lock.yaml", "lockfileVersion: '6.0'\n")
+
+	info := Analyze(dir)
+
+	if info.BuildCmd != "pnpm run build" {
+		t.Errorf("BuildCmd = %q, want %q", info.BuildCmd, "pnpm run build")
+	}
+	if info.LintCmd != "pnpm run lint" {
+		t.Errorf("LintCmd = %q, want %q", info.LintCmd, "pnpm run lint")
+	}
+	if info.TestCmd != "pnpm test" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "pnpm test")
+	}
+}
+
+func TestAnalyze_Node_BunLockb(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{
+		"name": "my-app",
+		"scripts": {
+			"build": "bun build src/index.ts",
+			"test": "bun test",
+			"lint": "eslint ."
+		}
+	}`)
+	writeFile(t, dir, "bun.lockb", "")
+
+	info := Analyze(dir)
+
+	if info.BuildCmd != "bun run build" {
+		t.Errorf("BuildCmd = %q, want %q", info.BuildCmd, "bun run build")
+	}
+	if info.LintCmd != "bun run lint" {
+		t.Errorf("LintCmd = %q, want %q", info.LintCmd, "bun run lint")
+	}
+	if info.TestCmd != "bun test" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "bun test")
+	}
+}
+
+func TestAnalyze_Node_LockfilePriority(t *testing.T) {
+	// bun.lockb takes priority over yarn.lock and pnpm-lock.yaml
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "app", "scripts": {"build": "build"}}`)
+	writeFile(t, dir, "bun.lockb", "")
+	writeFile(t, dir, "yarn.lock", "# yarn lockfile v1\n")
+
+	info := Analyze(dir)
+
+	if info.BuildCmd != "bun run build" {
+		t.Errorf("BuildCmd = %q, want bun run build (bun.lockb should take priority)", info.BuildCmd)
+	}
+}
+
 func TestAnalyze_Node_MalformedJSON(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "package.json", `{not valid json`)
