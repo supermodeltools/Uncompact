@@ -92,8 +92,21 @@ func ReadWithTTL(projectRoot string, ttl time.Duration) (*SessionSnapshot, error
 		}
 	}
 
+	// If no header was present, fall back to file mtime so header-less
+	// snapshots (e.g. written by a pre-header version of the tool, created
+	// manually, or partially written) are still subject to TTL rather than
+	// being injected indefinitely.
+	if timestamp.IsZero() {
+		info, statErr := os.Stat(Path(projectRoot))
+		if statErr != nil {
+			_ = os.Remove(Path(projectRoot))
+			return nil, nil
+		}
+		timestamp = info.ModTime()
+	}
+
 	// Enforce TTL
-	if !timestamp.IsZero() && ttl > 0 && time.Since(timestamp) > ttl {
+	if ttl > 0 && time.Since(timestamp) > ttl {
 		_ = os.Remove(Path(projectRoot)) // clean up stale file
 		return nil, nil
 	}
