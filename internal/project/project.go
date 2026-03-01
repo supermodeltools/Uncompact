@@ -50,11 +50,15 @@ func Detect(ctx context.Context, dir string) (*Info, error) {
 		info.Branch = strings.TrimSpace(out)
 	}
 
-	// Build a stable hash from the root path (and remote URL if available).
+	// Build a stable hash from the root path (and remote URL if available),
+	// keyed per-branch so switching branches invalidates the cache.
 	// h[:8] = first 8 bytes of SHA-256, formatted as %x = 16 hex characters.
 	hashInput := root
 	if info.GitURL != "" {
 		hashInput = info.GitURL
+	}
+	if info.Branch != "" {
+		hashInput += "@" + info.Branch
 	}
 	h := sha256.Sum256([]byte(hashInput))
 	info.Hash = fmt.Sprintf("%x", h[:8])
