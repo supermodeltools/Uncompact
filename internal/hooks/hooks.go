@@ -312,11 +312,43 @@ func buildDiff(before, after string) string {
 		ops[k], ops[l] = ops[l], ops[k]
 	}
 
-	for _, o := range ops {
-		if o.removed {
+	const contextLines = 3
+
+	// Build a set of indices that have a change nearby.
+	changed := make(map[int]bool, len(ops))
+	for i, o := range ops {
+		if o.added || o.removed {
+			changed[i] = true
+		}
+	}
+	inContext := make(map[int]bool, len(ops))
+	for i := range ops {
+		if changed[i] {
+			for d := -contextLines; d <= contextLines; d++ {
+				if j := i + d; j >= 0 && j < len(ops) {
+					inContext[j] = true
+				}
+			}
+		}
+	}
+
+	skipping := false
+	for i, o := range ops {
+		switch {
+		case o.removed:
+			skipping = false
 			sb.WriteString("- " + o.line + "\n")
-		} else if o.added {
+		case o.added:
+			skipping = false
 			sb.WriteString("+ " + o.line + "\n")
+		case inContext[i]:
+			skipping = false
+			sb.WriteString("  " + o.line + "\n")
+		default:
+			if !skipping {
+				sb.WriteString("...\n")
+				skipping = true
+			}
 		}
 	}
 	return sb.String()
