@@ -280,6 +280,10 @@ func looksLikeFilePath(s string) bool {
 	if strings.HasPrefix(s, "/") || strings.HasPrefix(s, "./") || strings.HasPrefix(s, "../") {
 		return true
 	}
+	// Windows absolute path: C:\ or C:/
+	if len(s) >= 3 && s[1] == ':' && (s[2] == '/' || s[2] == '\\') {
+		return true
+	}
 	// For bare paths (no leading slash/dot) require the last path segment to
 	// carry a recognised source-file extension so that import paths such as
 	// "github.com/foo/bar" are not mistaken for file paths.

@@ -18,6 +18,8 @@ func TestLooksLikeFilePath_Positive(t *testing.T) {
 		{"nested internal path", "internal/template/render.go"},
 		{"json config", "config/settings.json"},
 		{"yaml in subdirectory", "deploy/k8s/pod.yaml"},
+		{"windows absolute path backslash", `C:\Users\foo\project\main.go`},
+		{"windows absolute path forward slash", "C:/Users/foo/project/main.go"},
 	}
 
 	for _, tc := range cases {
