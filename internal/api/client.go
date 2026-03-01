@@ -569,7 +569,12 @@ func (c *Client) GetGraphAndCircularDeps(ctx context.Context, projectName string
 		return nil, gr.err
 	}
 
-	cr := <-circCh
+	var cr circResult
+	select {
+	case cr = <-circCh:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 	if cr.err != nil {
 		c.logFn("[warn] circular dependency check failed: %v", cr.err)
 	} else {
