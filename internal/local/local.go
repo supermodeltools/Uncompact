@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/supermodeltools/uncompact/internal/api"
+	"github.com/supermodeltools/uncompact/internal/fsutil"
 )
 
 // deepDirs are top-level directories that should be grouped at two levels deep
@@ -133,6 +134,12 @@ func collectFiles(ctx context.Context, rootDir string) (extCounts map[string]int
 	extCounts = make(map[string]int)
 	dirFiles = make(map[string][]string)
 
+	// Build the set of git-tracked/unignored files so we can include dotfiles
+	// that are explicitly committed (e.g. .eslintrc.json, .prettierrc).
+	// gitFiles is nil when git is unavailable; in that case we fall back to
+	// skipping all dot-prefixed files for safety.
+	gitFiles := fsutil.BuildGitFileSet(ctx, rootDir)
+
 	walkErr := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -151,11 +158,6 @@ func collectFiles(ctx context.Context, rootDir string) (extCounts map[string]int
 			return nil
 		}
 
-		// Skip hidden files (e.g. .env, .npmrc, .netrc).
-		if strings.HasPrefix(d.Name(), ".") {
-			return nil
-		}
-
 		// Skip symlinks to avoid including files outside the repo root.
 		if d.Type()&fs.ModeSymlink != 0 {
 			return nil
@@ -163,6 +165,15 @@ func collectFiles(ctx context.Context, rootDir string) (extCounts map[string]int
 
 		rel, err := filepath.Rel(rootDir, path)
 		if err != nil {
+			return nil
+		}
+
+		// Skip hidden files (e.g. .env, .npmrc, .netrc) unless they are explicitly
+		// git-tracked. When git is unavailable (gitFiles is nil) we fall back to
+		// skipping all dot-prefixed files for safety. Tracked dotfiles such as
+		// .eslintrc.json, .prettierrc, and .editorconfig are intentionally
+		// included because they provide valuable project context.
+		if strings.HasPrefix(d.Name(), ".") && (gitFiles == nil || !gitFiles[filepath.ToSlash(rel)]) {
 			return nil
 		}
 
