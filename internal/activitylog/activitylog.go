@@ -99,7 +99,11 @@ func rotate(path string) error {
 	if err := os.WriteFile(tmp, data[offset:], 0600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 // ReadAll reads all entries from the activity log.
