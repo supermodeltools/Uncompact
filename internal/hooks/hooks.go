@@ -165,7 +165,7 @@ func Install(settingsPath string, dryRun bool) (*InstallResult, error) {
 	rawJSON["hooks"] = newHooksRaw
 
 	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(settingsPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0700); err != nil {
 		return nil, fmt.Errorf("creating settings directory: %w", err)
 	}
 
