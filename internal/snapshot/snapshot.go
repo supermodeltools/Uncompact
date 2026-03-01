@@ -42,7 +42,11 @@ func Write(projectRoot string, snap *SessionSnapshot) error {
 		_ = os.Remove(tmp)
 		return err
 	}
-	return os.Rename(tmp, Path(projectRoot))
+	if err := os.Rename(tmp, Path(projectRoot)); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 // Read loads the session snapshot if it exists and is within the default TTL.
