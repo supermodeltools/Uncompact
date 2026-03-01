@@ -58,14 +58,14 @@ var cacheClearCmd = &cobra.Command{
 	RunE:  cacheClearHandler,
 }
 
-var cacheProjectFlag bool
+var cacheProjectFlag string
 
 func init() {
 	logsCmd.Flags().IntVar(&logsLimit, "tail", 20, "Number of recent log entries to show")
 	logsCmd.Flags().StringVar(&logsProjectFlag, "project", "", "Filter logs to a specific project path (use '.' for current directory)")
 	statsCmd.Flags().StringVar(&statsProjectFlag, "project", "", "Filter stats to a specific project path (use '.' for current directory)")
 	cacheCmd.AddCommand(cacheClearCmd)
-	cacheClearCmd.Flags().BoolVar(&cacheProjectFlag, "project", false, "Clear only the current project's cache")
+	cacheClearCmd.Flags().StringVar(&cacheProjectFlag, "project", "", "Clear only the cache for this project path (use '.' for current directory)")
 	rootCmd.AddCommand(statusCmd, logsCmd, statsCmd, dryRunCmd, cacheCmd)
 }
 
@@ -437,10 +437,10 @@ func cacheClearHandler(cmd *cobra.Command, args []string) error {
 	}
 	defer store.Close()
 
-	if cacheProjectFlag {
+	if cacheProjectFlag != "" {
 		gitCtx, gitCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer gitCancel()
-		proj, err := project.Detect(gitCtx, "")
+		proj, err := project.Detect(gitCtx, cacheProjectFlag)
 		if err != nil {
 			return fmt.Errorf("project detection failed: %w", err)
 		}
