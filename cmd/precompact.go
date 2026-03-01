@@ -108,10 +108,37 @@ func buildSnapshotContent(transcriptPath string, logFn func(string, ...interface
 	var userMessages []string
 	var filesInFocus []string
 
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 4*1024*1024), 4*1024*1024)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+	reader := bufio.NewReaderSize(f, 4*1024*1024)
+	for {
+		lineBytes, isPrefix, err := reader.ReadLine()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			logFn("[warn] pre-compact: reading transcript: %v", err)
+			break
+		}
+		if isPrefix {
+			// Line exceeds 4 MB buffer; skip it and drain the remainder so
+			// subsequent lines can still be processed.
+			logFn("[warn] pre-compact: skipping oversized transcript line (>4MB)")
+			for isPrefix {
+				_, isPrefix, err = reader.ReadLine()
+				if err != nil {
+					break
+				}
+			}
+			if err != nil && err != io.EOF {
+				logFn("[warn] pre-compact: reading transcript after oversized line: %v", err)
+				break
+			}
+			if err == io.EOF {
+				break
+			}
+			continue
+		}
+
+		line := strings.TrimSpace(string(lineBytes))
 		if line == "" {
 			continue
 		}
@@ -138,9 +165,6 @@ func buildSnapshotContent(transcriptPath string, logFn func(string, ...interface
 				filesInFocus = append(filesInFocus, word)
 			}
 		}
-	}
-	if err := scanner.Err(); err != nil {
-		logFn("[warn] pre-compact: reading transcript: %v", err)
 	}
 
 	// Keep the 5 most recent user messages for context
