@@ -101,16 +101,22 @@ func reportHandler(cmd *cobra.Command, args []string) error {
 				sincePtr = &since
 			}
 			var projectHash string
+			var projectHashSet bool
 			if filterProject != "" {
 				gitCtx, gitCancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer gitCancel()
 				if info, err := project.Detect(gitCtx, filterProject); err == nil {
 					projectHash = info.Hash
+					projectHashSet = true
 				}
+			} else {
+				projectHashSet = true // no filter — all-project query is correct
 			}
-			if stats, err := store.GetStats(projectHash, sincePtr); err == nil && stats.TotalInjections > 0 {
-				rpt.TotalTokens = stats.TotalTokens
-				rpt.TokensExact = true
+			if projectHashSet {
+				if stats, err := store.GetStats(projectHash, sincePtr); err == nil && stats.TotalInjections > 0 {
+					rpt.TotalTokens = stats.TotalTokens
+					rpt.TokensExact = true
+				}
 			}
 		}
 	}
