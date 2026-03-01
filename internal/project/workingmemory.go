@@ -80,11 +80,18 @@ func GetWorkingMemory(ctx context.Context, rootDir string, logFn func(string, ..
 			return nil
 		}
 		// Has uncommitted changes but no commits ahead — return partial WorkingMemory
-		return &WorkingMemory{
+		wm := &WorkingMemory{
 			Branch:        branch,
 			DefaultBranch: base,
 			Uncommitted:   uncommitted,
 		}
+		if m := issueNumberRe.FindStringSubmatch(branch); m != nil {
+			if n, err := strconv.Atoi(m[1]); err == nil && n > 0 {
+				wm.IssueNumber = n
+				ghFetchIssue(ctx, rootDir, wm, n, logFn)
+			}
+		}
+		return wm
 	}
 
 	wm := &WorkingMemory{
