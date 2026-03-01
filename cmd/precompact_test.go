@@ -101,6 +101,32 @@ func TestExtractMessageText_NonTextBlocksSkipped(t *testing.T) {
 	}
 }
 
+func TestExtractMessageText_ToolUseFilePaths(t *testing.T) {
+	cases := []struct {
+		name  string
+		field string
+		value string
+	}{
+		{"file_path field", "file_path", "cmd/run.go"},
+		{"path field", "path", "internal/cache/store.go"},
+		{"pattern field", "pattern", "**/*.go"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			content := []interface{}{
+				map[string]interface{}{
+					"type":  "tool_use",
+					"input": map[string]interface{}{tc.field: tc.value},
+				},
+			}
+			got := extractMessageText(content)
+			if !strings.Contains(got, tc.value) {
+				t.Errorf("extractMessageText() = %q, expected to contain %q", got, tc.value)
+			}
+		})
+	}
+}
+
 // buildSnapshotMarkdown tests
 
 func TestBuildSnapshotMarkdown_WithData(t *testing.T) {
