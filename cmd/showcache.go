@@ -30,9 +30,15 @@ func showCacheHandler(cmd *cobra.Command, args []string) error {
 	tmpPath := cachePath + ".consuming"
 	if err := os.Rename(cachePath, tmpPath); err != nil {
 		if os.IsNotExist(err) {
-			return nil // Another invocation already consumed it — silent exit.
+			// cachePath is gone — check for an orphaned .consuming file left
+			// behind by a previous crash between Rename and Remove.
+			if _, statErr := os.Stat(tmpPath); statErr != nil {
+				return nil // No orphaned file either — nothing to show.
+			}
+			// Orphaned file found — fall through to read and delete it.
+		} else {
+			return nil // Rename failed — silent exit to avoid blocking Claude Code.
 		}
-		return nil // Rename failed — silent exit to avoid blocking Claude Code.
 	}
 
 	data, err := os.ReadFile(tmpPath)
