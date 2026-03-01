@@ -161,6 +161,71 @@ func runHandler(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Spawn a background goroutine to refresh a stale cache entry.
+	// Fire-and-forget: mirrors the prune goroutine pattern; the caller is
+	// served the stale graph immediately while the refresh runs in parallel.
+	// This makes the "will refresh in background" log message accurate
+	// regardless of whether the pregen hook is installed.
+	if stale {
+		go func(path string, projHash, projName, projRootDir string) {
+			bgStore, err := cache.Open(path)
+			if err != nil {
+				logFn("[warn] bg refresh: failed to open store: %v", err)
+				return
+			}
+			defer bgStore.Close()
+
+			// Skip if cache is now fresh (e.g. a concurrent pregen just updated it).
+			if _, fresh, _, _, err := bgStore.Get(projHash); err == nil && fresh {
+				logFn("[debug] bg refresh: cache is now fresh, skipping")
+				return
+			}
+
+			// Acquire pregen lock to avoid racing with a concurrent pregen.
+			lockPath := filepath.Join(filepath.Dir(path), fmt.Sprintf("pregen-%s.lock", projHash))
+			unlock, acquired, err := acquirePregenLock(lockPath)
+			if err != nil {
+				logFn("[warn] bg refresh: lock error: %v", err)
+				return
+			}
+			if !acquired {
+				logFn("[debug] bg refresh: pregen already running, skipping")
+				return
+			}
+			defer unlock()
+
+			// Re-check freshness now that we hold the lock — a concurrent pregen may
+			// have populated the cache while we were waiting.
+			if _, fresh, _, _, err := bgStore.Get(projHash); err == nil && fresh {
+				logFn("[debug] bg refresh: cache populated by concurrent pregen, skipping")
+				return
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+			defer cancel()
+
+			zipData, skipReport, err := zip.RepoZip(ctx, projRootDir)
+			if err != nil {
+				logFn("[warn] bg refresh: zip error: %v", err)
+				return
+			}
+			logZipSkips(skipReport)
+
+			apiClient := api.New(cfg.BaseURL, cfg.APIKey, debug, logFn)
+			freshGraph, err := fetchGraphWithCircularDeps(ctx, apiClient, projName, zipData)
+			if err != nil {
+				logFn("[warn] bg refresh: API error: %v", err)
+				return
+			}
+
+			if err := bgStore.Set(projHash, projName, freshGraph); err != nil {
+				logFn("[warn] bg refresh: cache write error: %v", err)
+				return
+			}
+			logFn("[debug] bg refresh: graph refreshed for %s", projName)
+		}(dbPath, proj.Hash, proj.Name, proj.RootDir)
+	}
+
 	// If no cache or forced refresh, fetch from API
 	if graph == nil || forceRefresh {
 		logFn("[debug] fetching from Supermodel API...")
