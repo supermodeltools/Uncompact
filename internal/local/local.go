@@ -261,7 +261,15 @@ func buildDomains(dirFiles map[string][]string) []api.Domain {
 	for dir := range dirFiles {
 		dirs = append(dirs, dir)
 	}
-	sort.Strings(dirs)
+	// Sort by file count descending so the most substantial directories are
+	// kept when the list is truncated. Use alphabetical order as a tiebreaker.
+	sort.Slice(dirs, func(i, j int) bool {
+		ci, cj := len(dirFiles[dirs[i]]), len(dirFiles[dirs[j]])
+		if ci != cj {
+			return ci > cj // more files = higher priority
+		}
+		return dirs[i] < dirs[j] // alphabetical tiebreak
+	})
 
 	// Cap the number of directories to keep the domain list manageable.
 	if len(dirs) > maxDomains {
