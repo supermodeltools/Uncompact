@@ -367,8 +367,8 @@ func TestGetStats(t *testing.T) {
 	if stats.APIFetches != 2 {
 		t.Errorf("APIFetches = %d, want 2", stats.APIFetches)
 	}
-	if stats.CacheHits != 2 { // cache + stale_cache
-		t.Errorf("CacheHits = %d, want 2", stats.CacheHits)
+	if stats.FreshCacheHits != 1 {
+		t.Errorf("FreshCacheHits = %d, want 1", stats.FreshCacheHits)
 	}
 	if stats.StaleCacheHits != 1 {
 		t.Errorf("StaleCacheHits = %d, want 1", stats.StaleCacheHits)

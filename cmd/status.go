@@ -225,15 +225,16 @@ func statsHandler(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Total injections:  %d\n", st.TotalInjections)
 	fmt.Printf("API fetches:       %d\n", st.APIFetches)
-	fmt.Printf("Cache hits:        %d\n", st.CacheHits)
+	fmt.Printf("Fresh cache hits:  %d\n", st.FreshCacheHits)
 	fmt.Printf("Stale cache hits:  %d\n", st.StaleCacheHits)
 	fmt.Printf("Local builds:      %d\n", st.LocalBuilds)
+	totalCacheHits := st.FreshCacheHits + st.StaleCacheHits
 	if st.TotalInjections > 0 {
-		hitRate := float64(st.CacheHits) / float64(st.TotalInjections) * 100
+		hitRate := float64(totalCacheHits) / float64(st.TotalInjections) * 100
 		fmt.Printf("Cache hit rate:    %.1f%%\n", hitRate)
 	}
-	if st.CacheHits > 0 {
-		staleRate := float64(st.StaleCacheHits) / float64(st.CacheHits) * 100
+	if totalCacheHits > 0 {
+		staleRate := float64(st.StaleCacheHits) / float64(totalCacheHits) * 100
 		fmt.Printf("Stale hit rate:    %.1f%%\n", staleRate)
 	}
 	fmt.Printf("Total tokens:      %d\n", st.TotalTokens)
