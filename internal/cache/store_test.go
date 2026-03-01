@@ -330,7 +330,7 @@ func TestGetStats(t *testing.T) {
 		}
 	}
 
-	stats, err := s.GetStats("")
+	stats, err := s.GetStats("", nil)
 	if err != nil {
 		t.Fatalf("GetStats: %v", err)
 	}
@@ -368,7 +368,7 @@ func TestGetStats_FilterByProject(t *testing.T) {
 		t.Fatalf("LogInjection hash-2: %v", err)
 	}
 
-	stats, err := s.GetStats("hash-1")
+	stats, err := s.GetStats("hash-1", nil)
 	if err != nil {
 		t.Fatalf("GetStats: %v", err)
 	}
@@ -383,7 +383,7 @@ func TestGetStats_FilterByProject(t *testing.T) {
 func TestGetStats_EmptyProject(t *testing.T) {
 	s := openTestStore(t)
 
-	stats, err := s.GetStats("unknown-hash")
+	stats, err := s.GetStats("unknown-hash", nil)
 	if err != nil {
 		t.Fatalf("GetStats: %v", err)
 	}

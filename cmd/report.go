@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"github.com/supermodeltools/uncompact/internal/activitylog"
 	"github.com/supermodeltools/uncompact/internal/cache"
 	"github.com/supermodeltools/uncompact/internal/config"
+	"github.com/supermodeltools/uncompact/internal/project"
 )
 
 var (
@@ -86,10 +88,21 @@ func reportHandler(cmd *cobra.Command, args []string) error {
 	rpt := buildReportData(filtered, windowLabel)
 
 	// Replace the byte-based token estimate with exact counts from the SQLite injection log.
+	// Apply the same time window and project filters as the activity log query.
 	if dbPath, err := config.DBPath(); err == nil {
 		if store, err := cache.Open(dbPath); err == nil {
 			defer store.Close()
-			if stats, err := store.GetStats(""); err == nil && stats.TotalInjections > 0 {
+			var sincePtr *time.Time
+			if !since.IsZero() {
+				sincePtr = &since
+			}
+			var projectHash string
+			if filterProject != "" {
+				if info, err := project.Detect(context.Background(), filterProject); err == nil {
+					projectHash = info.Hash
+				}
+			}
+			if stats, err := store.GetStats(projectHash, sincePtr); err == nil && stats.TotalInjections > 0 {
 				rpt.TotalTokens = stats.TotalTokens
 				rpt.TokensExact = true
 			}
