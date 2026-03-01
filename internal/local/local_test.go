@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -277,5 +278,57 @@ func TestBuildDomains_DomainsAreSortedAlphabetically(t *testing.T) {
 	if domains[0].Name != "aaa" || domains[1].Name != "mmm" || domains[2].Name != "zzz" {
 		t.Errorf("domains not sorted alphabetically: got %q, %q, %q",
 			domains[0].Name, domains[1].Name, domains[2].Name)
+	}
+}
+
+// --- git-tracked dotfiles ---
+
+// TestBuildProjectGraph_IncludesGitTrackedDotfiles verifies that dotfiles
+// explicitly committed to git (e.g. .eslintrc.json, .prettierrc) are counted
+// in local mode, while untracked dotfiles (e.g. .env) are still excluded.
+func TestBuildProjectGraph_IncludesGitTrackedDotfiles(t *testing.T) {
+	dir := t.TempDir()
+
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Skipf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	run("init")
+	run("config", "user.email", "test@example.com")
+	run("config", "user.name", "Test")
+
+	writeFile(t, dir, ".eslintrc.json", `{"semi": false}`)
+	writeFile(t, dir, ".env", "SECRET=value\n")
+	writeFile(t, dir, "main.go", "package main\n")
+
+	// Track .eslintrc.json and main.go; leave .env untracked.
+	run("add", ".eslintrc.json", "main.go")
+	run("commit", "-m", "initial")
+
+	graph, err := BuildProjectGraph(context.Background(), dir, "proj")
+	if err != nil {
+		t.Fatalf("BuildProjectGraph: %v", err)
+	}
+
+	// main.go + .eslintrc.json = 2 files; .env must be excluded.
+	if graph.Stats.TotalFiles != 2 {
+		t.Errorf("TotalFiles = %d, want 2 (.eslintrc.json tracked, .env untracked)", graph.Stats.TotalFiles)
+	}
+
+	// Verify .eslintrc.json appears somewhere in the domain key files.
+	found := false
+	for _, d := range graph.Domains {
+		for _, f := range d.KeyFiles {
+			if f == ".eslintrc.json" {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Error(".eslintrc.json (git-tracked dotfile) not found in any domain key files")
 	}
 }
