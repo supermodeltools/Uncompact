@@ -292,15 +292,13 @@ func runHandler(cmd *cobra.Command, args []string) error {
 		return silentExit()
 	}
 
-	// Clear the session snapshot after it has been injected into the context bomb.
-	if snap != nil {
+	// Emit context bomb to stdout; only clear the snapshot on success so it
+	// survives a broken-pipe or other write error.
+	if _, err := fmt.Print(output); err == nil && snap != nil {
 		if clearErr := snapshot.Clear(proj.RootDir); clearErr != nil {
 			logFn("[warn] snapshot clear error: %v", clearErr)
 		}
 	}
-
-	// Emit context bomb to stdout
-	fmt.Print(output)
 
 	// Write to display cache so the UserPromptSubmit hook (show-cache) can display it.
 	// If --post-compact was set, write a clean version (without the acknowledgment note)
@@ -431,14 +429,13 @@ func runLocalMode(logFn func(string, ...interface{})) error {
 		return silentExit()
 	}
 
-	// Clear the session snapshot after it has been injected into the context bomb.
-	if snap != nil {
+	// Emit context bomb to stdout; only clear the snapshot on success so it
+	// survives a broken-pipe or other write error.
+	if _, err := fmt.Print(output); err == nil && snap != nil {
 		if clearErr := snapshot.Clear(proj.RootDir); clearErr != nil {
 			logFn("[warn] snapshot clear error: %v", clearErr)
 		}
 	}
-
-	fmt.Print(output)
 
 	cacheOutputLocal := output
 	if postCompact {
@@ -507,14 +504,13 @@ func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.Working
 		return silentExit()
 	}
 
-	// Clear the session snapshot after it has been injected into the context bomb.
-	if snap != nil {
+	// Emit context bomb to stdout; only clear the snapshot on success so it
+	// survives a broken-pipe or other write error.
+	if _, err := fmt.Print(output); err == nil && snap != nil {
 		if clearErr := snapshot.Clear(proj.RootDir); clearErr != nil {
 			logFn("[warn] snapshot clear error: %v", clearErr)
 		}
 	}
-
-	fmt.Print(output)
 
 	// Write to display cache so the UserPromptSubmit hook (show-cache) can display it.
 	// If --post-compact was set, write a clean version (without the acknowledgment note)
