@@ -265,11 +265,15 @@ func extractMessageText(content interface{}) string {
 				if t, ok := m["text"].(string); ok && t != "" {
 					parts = append(parts, t)
 				}
-				// Tool-use block — include file_path so it is picked up by looksLikeFilePath
+				// Tool-use block — include file path fields so they are picked up by looksLikeFilePath.
+				// Different tools use different field names: file_path (Read/Write/Edit),
+				// path (Grep), pattern (Glob).
 				if m["type"] == "tool_use" {
 					if input, ok := m["input"].(map[string]interface{}); ok {
-						if fp, ok := input["file_path"].(string); ok && fp != "" {
-							parts = append(parts, fp)
+						for _, field := range []string{"file_path", "path", "pattern"} {
+							if fp, ok := input[field].(string); ok && fp != "" {
+								parts = append(parts, fp)
+							}
 						}
 					}
 				}
