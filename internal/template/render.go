@@ -167,15 +167,11 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 			if budget < 1 {
 				budget = 1
 			}
-			if tokens <= budget {
-				result, resultTokens = fullText, tokens
-			} else {
-				truncated, truncatedTokens, truncErr := truncateToTokenBudget(graph, projectName, budget, graph.Stats.CircularDependencyCycles, opts.WorkingMemory, opts.SessionSnapshot, opts.ClaudeMD, opts.LocalMode, opts.Stale, staleDuration)
-				if truncErr != nil {
-					return "", 0, truncErr
-				}
-				result, resultTokens = truncated, truncatedTokens
+			truncated, truncatedTokens, truncErr := truncateToTokenBudget(graph, projectName, budget, graph.Stats.CircularDependencyCycles, opts.WorkingMemory, opts.SessionSnapshot, opts.ClaudeMD, opts.LocalMode, opts.Stale, staleDuration)
+			if truncErr != nil {
+				return "", 0, truncErr
 			}
+			result, resultTokens = truncated, truncatedTokens
 			note = buildNote(resultTokens)
 		}
 		result += note
