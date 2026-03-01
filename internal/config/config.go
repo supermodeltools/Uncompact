@@ -191,7 +191,11 @@ func Save(cfg *Config) error {
 		_ = os.Remove(tmp)
 		return err
 	}
-	return os.Rename(tmp, cfgFile)
+	if err := os.Rename(tmp, cfgFile); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 // IsAuthenticated returns true if an API key is configured.
