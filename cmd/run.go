@@ -43,6 +43,9 @@ func init() {
 }
 
 func runHandler(cmd *cobra.Command, args []string) error {
+	if maxStale < 0 {
+		return fmt.Errorf("--max-stale must be >= 0 (got %v)", maxStale)
+	}
 	logFn := makeLogger()
 
 	// Load config
