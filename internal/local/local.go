@@ -543,7 +543,7 @@ func isHorizontalRule(line string) bool {
 
 // readDescription attempts to extract a one-line project description from README.md.
 func readDescription(rootDir string) string {
-	for _, name := range []string{"README.md", "readme.md", "README.txt"} {
+	for _, name := range []string{"README.md", "readme.md", "README.rst", "readme.rst", "README.txt"} {
 		data, err := os.ReadFile(filepath.Join(rootDir, name))
 		if err != nil {
 			continue
