@@ -586,6 +586,55 @@ func analyzeJava(dir string, info *RepoInfo) {
 			info.TestCmd = mvnCmd + " test"
 		}
 	}
+
+	// Extract project name from Gradle settings.gradle / settings.gradle.kts.
+	for _, settingsFile := range []string{"settings.gradle", "settings.gradle.kts"} {
+		data, err := os.ReadFile(filepath.Join(dir, settingsFile))
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "rootProject.name") && strings.Contains(line, "=") {
+				idx := strings.Index(line, "=")
+				rest := strings.TrimSpace(line[idx+1:])
+				if len(rest) > 0 && (rest[0] == '"' || rest[0] == '\'') {
+					quote := rest[0]
+					if end := strings.IndexByte(rest[1:], quote); end >= 0 {
+						if name := rest[1 : end+1]; name != "" {
+							info.ProjectName = name
+						}
+					}
+				}
+				break
+			}
+		}
+		break
+	}
+
+	// Extract project name from Maven pom.xml if not already set from Gradle settings.
+	if info.ProjectName == filepath.Base(dir) {
+		if data, err := os.ReadFile(filepath.Join(dir, "pom.xml")); err == nil {
+			inParent := false
+			for _, line := range strings.Split(string(data), "\n") {
+				line = strings.TrimSpace(line)
+				if strings.Contains(line, "<parent>") {
+					inParent = true
+				}
+				if strings.Contains(line, "</parent>") {
+					inParent = false
+					continue
+				}
+				if !inParent && strings.HasPrefix(line, "<artifactId>") && strings.HasSuffix(line, "</artifactId>") {
+					name := strings.TrimSuffix(strings.TrimPrefix(line, "<artifactId>"), "</artifactId>")
+					if name != "" {
+						info.ProjectName = name
+						break
+					}
+				}
+			}
+		}
+	}
 }
 
 func analyzePHP(dir string, info *RepoInfo) {

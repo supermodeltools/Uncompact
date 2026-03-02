@@ -368,6 +368,79 @@ func TestAnalyze_GoTakesPriorityOverRust(t *testing.T) {
 	}
 }
 
+// --- Analyze: Java ---
+
+func TestAnalyze_Java_MavenProjectName(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "pom.xml", `<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>my-maven-app</artifactId>
+  <version>1.0.0</version>
+</project>`)
+
+	info := Analyze(dir)
+
+	if info.Language != "Java" {
+		t.Errorf("Language = %q, want %q", info.Language, "Java")
+	}
+	if info.ProjectName != "my-maven-app" {
+		t.Errorf("ProjectName = %q, want %q", info.ProjectName, "my-maven-app")
+	}
+}
+
+func TestAnalyze_Java_MavenProjectName_SkipsParentArtifactId(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "pom.xml", `<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.0.0</version>
+  </parent>
+  <groupId>com.example</groupId>
+  <artifactId>my-spring-app</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+</project>`)
+
+	info := Analyze(dir)
+
+	if info.ProjectName != "my-spring-app" {
+		t.Errorf("ProjectName = %q, want %q (should use project artifactId, not parent)", info.ProjectName, "my-spring-app")
+	}
+}
+
+func TestAnalyze_Java_GradleSettingsProjectName(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "build.gradle", "plugins {\n    id 'java'\n}\n")
+	writeFile(t, dir, "settings.gradle", "rootProject.name = 'my-gradle-app'\n")
+
+	info := Analyze(dir)
+
+	if info.Language != "Java" {
+		t.Errorf("Language = %q, want %q", info.Language, "Java")
+	}
+	if info.ProjectName != "my-gradle-app" {
+		t.Errorf("ProjectName = %q, want %q", info.ProjectName, "my-gradle-app")
+	}
+}
+
+func TestAnalyze_Java_GradleSettingsKtsProjectName(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "build.gradle.kts", "plugins {\n    kotlin(\"jvm\")\n}\n")
+	writeFile(t, dir, "settings.gradle.kts", "rootProject.name = \"my-kotlin-app\"\n")
+
+	info := Analyze(dir)
+
+	if info.Language != "Kotlin" {
+		t.Errorf("Language = %q, want %q", info.Language, "Kotlin")
+	}
+	if info.ProjectName != "my-kotlin-app" {
+		t.Errorf("ProjectName = %q, want %q", info.ProjectName, "my-kotlin-app")
+	}
+}
+
 // --- Analyze: Rust ---
 
 func TestAnalyze_Rust(t *testing.T) {
