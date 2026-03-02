@@ -235,6 +235,90 @@ func TestAnalyze_Node_PrettierConfig(t *testing.T) {
 	}
 }
 
+func TestAnalyze_Node_PrettierConfigYAML(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, ".prettierrc.yaml", ``)
+
+	info := Analyze(dir)
+
+	if !strings.Contains(info.CodeStyle, "Prettier") {
+		t.Errorf("CodeStyle = %q, want it to mention Prettier", info.CodeStyle)
+	}
+}
+
+func TestAnalyze_Node_PrettierConfigYML(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, ".prettierrc.yml", ``)
+
+	info := Analyze(dir)
+
+	if !strings.Contains(info.CodeStyle, "Prettier") {
+		t.Errorf("CodeStyle = %q, want it to mention Prettier", info.CodeStyle)
+	}
+}
+
+func TestAnalyze_Node_PrettierConfigCJS(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, ".prettierrc.cjs", ``)
+
+	info := Analyze(dir)
+
+	if !strings.Contains(info.CodeStyle, "Prettier") {
+		t.Errorf("CodeStyle = %q, want it to mention Prettier", info.CodeStyle)
+	}
+}
+
+func TestAnalyze_Node_PrettierConfigMJS(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, ".prettierrc.mjs", ``)
+
+	info := Analyze(dir)
+
+	if !strings.Contains(info.CodeStyle, "Prettier") {
+		t.Errorf("CodeStyle = %q, want it to mention Prettier", info.CodeStyle)
+	}
+}
+
+func TestAnalyze_Node_PrettierConfigJSCJS(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "prettier.config.cjs", ``)
+
+	info := Analyze(dir)
+
+	if !strings.Contains(info.CodeStyle, "Prettier") {
+		t.Errorf("CodeStyle = %q, want it to mention Prettier", info.CodeStyle)
+	}
+}
+
+func TestAnalyze_Node_PrettierConfigTS(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "prettier.config.ts", ``)
+
+	info := Analyze(dir)
+
+	if !strings.Contains(info.CodeStyle, "Prettier") {
+		t.Errorf("CodeStyle = %q, want it to mention Prettier", info.CodeStyle)
+	}
+}
+
+func TestAnalyze_Node_PrettierConfigCTS(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "prettier.config.cts", ``)
+
+	info := Analyze(dir)
+
+	if !strings.Contains(info.CodeStyle, "Prettier") {
+		t.Errorf("CodeStyle = %q, want it to mention Prettier", info.CodeStyle)
+	}
+}
+
 func TestAnalyze_Node_YarnLock(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "package.json", `{

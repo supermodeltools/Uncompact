@@ -304,9 +304,16 @@ func analyzeNode(dir string, info *RepoInfo) {
 	// Detect formatter.
 	hasPrettier := fsutil.FileExists(filepath.Join(dir, ".prettierrc")) ||
 		fsutil.FileExists(filepath.Join(dir, ".prettierrc.json")) ||
+		fsutil.FileExists(filepath.Join(dir, ".prettierrc.yaml")) ||
+		fsutil.FileExists(filepath.Join(dir, ".prettierrc.yml")) ||
 		fsutil.FileExists(filepath.Join(dir, ".prettierrc.js")) ||
+		fsutil.FileExists(filepath.Join(dir, ".prettierrc.cjs")) ||
+		fsutil.FileExists(filepath.Join(dir, ".prettierrc.mjs")) ||
 		fsutil.FileExists(filepath.Join(dir, "prettier.config.js")) ||
-		fsutil.FileExists(filepath.Join(dir, "prettier.config.mjs"))
+		fsutil.FileExists(filepath.Join(dir, "prettier.config.cjs")) ||
+		fsutil.FileExists(filepath.Join(dir, "prettier.config.mjs")) ||
+		fsutil.FileExists(filepath.Join(dir, "prettier.config.ts")) ||
+		fsutil.FileExists(filepath.Join(dir, "prettier.config.cts"))
 	if hasPrettier {
 		info.CodeStyle = "Uses Prettier for formatting. Run `" + execPrefix("prettier --write .") + "` before committing."
 	}
