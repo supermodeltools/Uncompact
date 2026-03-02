@@ -822,7 +822,7 @@ func analyzeElixir(dir string, info *RepoInfo) {
 				continue
 			}
 			// Look for: app: :my_app
-			if info.ProjectName == "" && strings.Contains(line, "app:") {
+			if info.ProjectName == filepath.Base(dir) && strings.Contains(line, "app:") {
 				idx := strings.Index(line, "app:")
 				rest := strings.TrimSpace(line[idx+4:])
 				if strings.HasPrefix(rest, ":") {
