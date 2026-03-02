@@ -3,6 +3,7 @@ package project
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -160,6 +161,10 @@ func ghFetchIssue(ctx context.Context, rootDir string, wm *WorkingMemory, issueN
 	cmd.Dir = rootDir
 	out, err := cmd.Output()
 	if err != nil {
+		var execErr *exec.Error
+		if errors.As(err, &execErr) && errors.Is(execErr.Err, exec.ErrNotFound) {
+			return // gh not installed — silently skip
+		}
 		logFn("[debug] gh issue fetch failed (issue #%d): %v", issueNumber, err)
 		return
 	}
