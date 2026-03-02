@@ -240,16 +240,24 @@ func detectExternalDeps(rootDir string) []string {
 	// Cargo.toml: extract keys under [dependencies], [dev-dependencies], [build-dependencies].
 	if data, err := os.ReadFile(filepath.Join(rootDir, "Cargo.toml")); err == nil {
 		inDeps := false
+		braceDepth := 0
 		for _, line := range strings.Split(string(data), "\n") {
 			trimmed := strings.TrimSpace(line)
 			if strings.HasPrefix(trimmed, "[") {
 				inDeps = trimmed == "[dependencies]" || trimmed == "[dev-dependencies]" || trimmed == "[build-dependencies]" ||
 				trimmed == "[workspace.dependencies]" || trimmed == "[workspace.dev-dependencies]" || trimmed == "[workspace.build-dependencies]"
+				braceDepth = 0
 				continue
 			}
-			if inDeps && strings.Contains(trimmed, "=") && !strings.HasPrefix(trimmed, "#") {
+			opens := strings.Count(trimmed, "{")
+			closes := strings.Count(trimmed, "}")
+			if inDeps && braceDepth == 0 && strings.Contains(trimmed, "=") && !strings.HasPrefix(trimmed, "#") {
 				parts := strings.SplitN(trimmed, "=", 2)
 				add(strings.TrimSpace(parts[0]))
+			}
+			braceDepth += opens - closes
+			if braceDepth < 0 {
+				braceDepth = 0
 			}
 		}
 	}
