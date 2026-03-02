@@ -263,7 +263,10 @@ func analyzeNode(dir string, info *RepoInfo) {
 			fsutil.FileExists(filepath.Join(dir, ".eslintrc.yml")) ||
 			fsutil.FileExists(filepath.Join(dir, ".eslintrc.yaml")) ||
 			fsutil.FileExists(filepath.Join(dir, "eslint.config.js")) ||
-			fsutil.FileExists(filepath.Join(dir, "eslint.config.mjs"))
+			fsutil.FileExists(filepath.Join(dir, "eslint.config.mjs")) ||
+			fsutil.FileExists(filepath.Join(dir, "eslint.config.ts")) ||
+			fsutil.FileExists(filepath.Join(dir, "eslint.config.mts")) ||
+			fsutil.FileExists(filepath.Join(dir, "eslint.config.cts"))
 		hasBiome := fsutil.FileExists(filepath.Join(dir, "biome.json")) ||
 			fsutil.FileExists(filepath.Join(dir, "biome.jsonc"))
 		if hasESLint {
