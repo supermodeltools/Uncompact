@@ -544,6 +544,32 @@ func TestAnalyze_Swift_WithSwiftLintYaml(t *testing.T) {
 	}
 }
 
+func TestAnalyze_Swift_ProjectNameIsPackageName(t *testing.T) {
+	// Regression test: analyzeSwift must use the top-level Package(name:) value,
+	// not the last target/product name: it encounters in the file.
+	dir := t.TempDir()
+	writeFile(t, dir, "Package.swift", `// swift-tools-version:5.9
+import PackageDescription
+
+let package = Package(
+    name: "MyLib",
+    products: [
+        .library(name: "MyLib", targets: ["MyLib"]),
+    ],
+    targets: [
+        .target(name: "MyLib", dependencies: []),
+        .testTarget(name: "MyLibTests", dependencies: ["MyLib"]),
+    ]
+)
+`)
+
+	info := Analyze(dir)
+
+	if info.ProjectName != "MyLib" {
+		t.Errorf("ProjectName = %q, want %q (package name, not last target name)", info.ProjectName, "MyLib")
+	}
+}
+
 // --- Analyze: Elixir ---
 
 func TestAnalyze_Elixir_Minimal(t *testing.T) {
