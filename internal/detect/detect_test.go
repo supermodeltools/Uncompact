@@ -375,6 +375,215 @@ func TestAnalyze_Node_NoTsConfig_ReportsNodeJS(t *testing.T) {
 	}
 }
 
+// --- Analyze: Node.js test framework config file fallback ---
+
+func TestAnalyze_Node_VitestConfigJs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "vitest.config.js", `export default {}`)
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "npx vitest" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "npx vitest")
+	}
+}
+
+func TestAnalyze_Node_VitestConfigTs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "vitest.config.ts", `export default {}`)
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "npx vitest" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "npx vitest")
+	}
+}
+
+func TestAnalyze_Node_VitestConfigMjs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "vitest.config.mjs", `export default {}`)
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "npx vitest" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "npx vitest")
+	}
+}
+
+func TestAnalyze_Node_VitestConfigCjs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "vitest.config.cjs", `module.exports = {}`)
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "npx vitest" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "npx vitest")
+	}
+}
+
+func TestAnalyze_Node_JestConfigJs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "jest.config.js", `module.exports = {}`)
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "npx jest" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "npx jest")
+	}
+}
+
+func TestAnalyze_Node_JestConfigTs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "jest.config.ts", `export default {}`)
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "npx jest" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "npx jest")
+	}
+}
+
+func TestAnalyze_Node_JestConfigJson(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "jest.config.json", `{}`)
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "npx jest" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "npx jest")
+	}
+}
+
+func TestAnalyze_Node_JestConfigCjs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "jest.config.cjs", `module.exports = {}`)
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "npx jest" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "npx jest")
+	}
+}
+
+func TestAnalyze_Node_JestConfigMjs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "jest.config.mjs", `export default {}`)
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "npx jest" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "npx jest")
+	}
+}
+
+func TestAnalyze_Node_MocharcYml(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, ".mocharc.yml", `spec: 'test/**/*.js'`)
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "npx mocha" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "npx mocha")
+	}
+}
+
+func TestAnalyze_Node_MocharcJs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, ".mocharc.js", `module.exports = {}`)
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "npx mocha" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "npx mocha")
+	}
+}
+
+func TestAnalyze_Node_MocharcJson(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, ".mocharc.json", `{}`)
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "npx mocha" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "npx mocha")
+	}
+}
+
+func TestAnalyze_Node_MocharcCjs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, ".mocharc.cjs", `module.exports = {}`)
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "npx mocha" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "npx mocha")
+	}
+}
+
+func TestAnalyze_Node_TestScriptTakesPriorityOverConfigFile(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj", "scripts": {"test": "jest --coverage"}}`)
+	writeFile(t, dir, "vitest.config.ts", `export default {}`)
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "npm test" {
+		t.Errorf("TestCmd = %q, want %q (scripts.test should take priority over config file)", info.TestCmd, "npm test")
+	}
+}
+
+func TestAnalyze_Node_VitestConfigWithBunLockfile(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "bun.lockb", "")
+	writeFile(t, dir, "vitest.config.ts", `export default {}`)
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "bunx vitest" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "bunx vitest")
+	}
+}
+
+func TestAnalyze_Node_JestConfigWithPnpmLockfile(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "pnpm-lock.yaml", "lockfileVersion: '6.0'\n")
+	writeFile(t, dir, "jest.config.js", `module.exports = {}`)
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "pnpm exec jest" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "pnpm exec jest")
+	}
+}
+
+func TestAnalyze_Node_MocharcWithYarnLockfile(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "yarn.lock", "# yarn lockfile v1\n")
+	writeFile(t, dir, ".mocharc.yml", `spec: 'test/**/*.js'`)
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "yarn mocha" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "yarn mocha")
+	}
+}
+
 // --- Analyze: Unknown ---
 
 func TestAnalyze_Unknown_EmptyDir(t *testing.T) {
