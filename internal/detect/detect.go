@@ -454,6 +454,33 @@ func hasDotNetFile(dir string) bool {
 	return false
 }
 
+// dotNetProjectName returns the project name derived from the first
+// .csproj, .fsproj, or .vbproj file found in dir. If no project file is
+// present, it falls back to the base name of the first .sln file. An empty
+// string is returned when neither is found.
+func dotNetProjectName(dir string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	var slnName string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasSuffix(name, ".csproj") ||
+			strings.HasSuffix(name, ".fsproj") ||
+			strings.HasSuffix(name, ".vbproj") {
+			return strings.TrimSuffix(name, filepath.Ext(name))
+		}
+		if slnName == "" && strings.HasSuffix(name, ".sln") {
+			slnName = strings.TrimSuffix(name, ".sln")
+		}
+	}
+	return slnName
+}
+
 func analyzeRuby(dir string, info *RepoInfo) {
 	info.Language = "Ruby"
 
@@ -703,6 +730,12 @@ func analyzePHP(dir string, info *RepoInfo) {
 
 func analyzeDotNet(dir string, info *RepoInfo) {
 	info.Language = "C#"
+
+	// Derive project name from the .csproj/.fsproj/.vbproj filename, with
+	// .sln as a fallback, taking precedence over the directory basename.
+	if name := dotNetProjectName(dir); name != "" {
+		info.ProjectName = name
+	}
 
 	// Parse global.json for SDK version.
 	if data, err := os.ReadFile(filepath.Join(dir, "global.json")); err == nil {
