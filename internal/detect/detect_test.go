@@ -697,6 +697,146 @@ end
 	}
 }
 
+// --- Analyze: Ruby ---
+
+func TestAnalyze_Ruby_Minimal(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Gemfile", "source 'https://rubygems.org'\n\ngem 'rails'\n")
+
+	info := Analyze(dir)
+
+	if info.Language != "Ruby" {
+		t.Errorf("Language = %q, want %q", info.Language, "Ruby")
+	}
+	if info.ProjectName != filepath.Base(dir) {
+		t.Errorf("ProjectName = %q, want %q", info.ProjectName, filepath.Base(dir))
+	}
+}
+
+func TestAnalyze_Ruby_Version(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Gemfile", "source 'https://rubygems.org'\n")
+	writeFile(t, dir, ".ruby-version", "3.2.2\n")
+
+	info := Analyze(dir)
+
+	if info.Version != "3.2.2" {
+		t.Errorf("Version = %q, want %q", info.Version, "3.2.2")
+	}
+}
+
+func TestAnalyze_Ruby_RuboCopYml(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Gemfile", "source 'https://rubygems.org'\n")
+	writeFile(t, dir, ".rubocop.yml", "AllCops:\n  NewCops: enable\n")
+
+	info := Analyze(dir)
+
+	if info.LintCmd != "bundle exec rubocop" {
+		t.Errorf("LintCmd = %q, want %q", info.LintCmd, "bundle exec rubocop")
+	}
+	if !strings.Contains(info.CodeStyle, "RuboCop") {
+		t.Errorf("CodeStyle = %q, want it to mention RuboCop", info.CodeStyle)
+	}
+}
+
+func TestAnalyze_Ruby_RuboCopYaml(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Gemfile", "source 'https://rubygems.org'\n")
+	writeFile(t, dir, ".rubocop.yaml", "AllCops:\n  NewCops: enable\n")
+
+	info := Analyze(dir)
+
+	if info.LintCmd != "bundle exec rubocop" {
+		t.Errorf("LintCmd = %q, want %q", info.LintCmd, "bundle exec rubocop")
+	}
+	if !strings.Contains(info.CodeStyle, "RuboCop") {
+		t.Errorf("CodeStyle = %q, want it to mention RuboCop", info.CodeStyle)
+	}
+}
+
+func TestAnalyze_Ruby_RSpec(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Gemfile", "source 'https://rubygems.org'\n")
+	if err := os.MkdirAll(filepath.Join(dir, "spec"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "bundle exec rspec" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "bundle exec rspec")
+	}
+}
+
+func TestAnalyze_Ruby_Minitest(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Gemfile", "source 'https://rubygems.org'\n")
+	if err := os.MkdirAll(filepath.Join(dir, "test"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "bundle exec rake test" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "bundle exec rake test")
+	}
+}
+
+func TestAnalyze_Ruby_MakefileBuild(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Gemfile", "source 'https://rubygems.org'\n")
+	writeFile(t, dir, "Makefile", "build:\n\tbundle exec rake build\n")
+
+	info := Analyze(dir)
+
+	if info.BuildCmd != "make build" {
+		t.Errorf("BuildCmd = %q, want %q", info.BuildCmd, "make build")
+	}
+}
+
+func TestAnalyze_Ruby_MakefileTestOverridesSpec(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Gemfile", "source 'https://rubygems.org'\n")
+	writeFile(t, dir, "Makefile", "test:\n\tbundle exec rspec\n")
+	if err := os.MkdirAll(filepath.Join(dir, "spec"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "make test" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "make test")
+	}
+}
+
+func TestAnalyze_Ruby_MakefileTestOverridesMinitest(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Gemfile", "source 'https://rubygems.org'\n")
+	writeFile(t, dir, "Makefile", "test:\n\tbundle exec rake test\n")
+	if err := os.MkdirAll(filepath.Join(dir, "test"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "make test" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "make test")
+	}
+}
+
+func TestAnalyze_Ruby_MakefileLint(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Gemfile", "source 'https://rubygems.org'\n")
+	writeFile(t, dir, "Makefile", "lint:\n\tbundle exec rubocop\n")
+
+	info := Analyze(dir)
+
+	if info.LintCmd != "make lint" {
+		t.Errorf("LintCmd = %q, want %q", info.LintCmd, "make lint")
+	}
+}
+
 // --- LanguageSummary ---
 
 func TestLanguageSummary(t *testing.T) {
