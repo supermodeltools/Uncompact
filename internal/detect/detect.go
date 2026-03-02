@@ -215,6 +215,20 @@ func analyzeNode(dir string, info *RepoInfo) {
 		}
 	}
 
+	// execPrefix returns the correct executor prefix for the detected package manager.
+	execPrefix := func(tool string) string {
+		switch pkgMgr {
+		case "bun":
+			return "bunx " + tool
+		case "pnpm":
+			return "pnpm exec " + tool
+		case "yarn":
+			return "yarn " + tool
+		default:
+			return "npx " + tool
+		}
+	}
+
 	// Detect linter from config files if not set from package.json scripts.
 	if info.LintCmd == "" {
 		hasESLint := fsutil.FileExists(filepath.Join(dir, ".eslintrc.js")) ||
@@ -226,9 +240,9 @@ func analyzeNode(dir string, info *RepoInfo) {
 		hasBiome := fsutil.FileExists(filepath.Join(dir, "biome.json")) ||
 			fsutil.FileExists(filepath.Join(dir, "biome.jsonc"))
 		if hasESLint {
-			info.LintCmd = "npx eslint ."
+			info.LintCmd = execPrefix("eslint .")
 		} else if hasBiome {
-			info.LintCmd = "npx biome check ."
+			info.LintCmd = execPrefix("biome check .")
 		}
 	}
 
@@ -239,7 +253,7 @@ func analyzeNode(dir string, info *RepoInfo) {
 		fsutil.FileExists(filepath.Join(dir, "prettier.config.js")) ||
 		fsutil.FileExists(filepath.Join(dir, "prettier.config.mjs"))
 	if hasPrettier {
-		info.CodeStyle = "Uses Prettier for formatting. Run `npx prettier --write .` before committing."
+		info.CodeStyle = "Uses Prettier for formatting. Run `" + execPrefix("prettier --write .") + "` before committing."
 	}
 }
 
