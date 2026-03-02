@@ -221,7 +221,7 @@ func analyzeNode(dir string, info *RepoInfo) {
 			if _, ok := pkg.Scripts["lint"]; ok {
 				info.LintCmd = pkgMgr + " run lint"
 			}
-			if _, ok := pkg.Scripts["test"]; ok {
+			if testScript, ok := pkg.Scripts["test"]; ok && testScript != "" && !strings.Contains(testScript, "no test specified") {
 				switch pkgMgr {
 				case "npm", "yarn", "pnpm":
 					info.TestCmd = pkgMgr + " test"
