@@ -61,6 +61,18 @@ func Analyze(dir string) *RepoInfo {
 		fsutil.FileExists(filepath.Join(dir, "setup.py")),
 		fsutil.FileExists(filepath.Join(dir, "setup.cfg")):
 		analyzePython(dir, info)
+	case fsutil.FileExists(filepath.Join(dir, "Gemfile")):
+		analyzeRuby(dir, info)
+	case fsutil.FileExists(filepath.Join(dir, "pom.xml")),
+		fsutil.FileExists(filepath.Join(dir, "build.gradle")),
+		fsutil.FileExists(filepath.Join(dir, "build.gradle.kts")):
+		analyzeJava(dir, info)
+	case fsutil.FileExists(filepath.Join(dir, "composer.json")):
+		analyzePHP(dir, info)
+	case fsutil.FileExists(filepath.Join(dir, "global.json")),
+		fsutil.FileExists(filepath.Join(dir, "Directory.Build.props")),
+		hasDotNetFile(dir):
+		analyzeDotNet(dir, info)
 	default:
 		info.Language = "Unknown"
 	}
@@ -382,6 +394,218 @@ func analyzePython(dir string, info *RepoInfo) {
 	if makefileHasTarget(dir, "build") {
 		info.BuildCmd = "make build"
 	}
+}
+
+// hasDotNetFile reports whether any .csproj, .fsproj, .vbproj, or .sln file
+// exists directly in dir.
+func hasDotNetFile(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasSuffix(name, ".csproj") ||
+			strings.HasSuffix(name, ".fsproj") ||
+			strings.HasSuffix(name, ".vbproj") ||
+			strings.HasSuffix(name, ".sln") {
+			return true
+		}
+	}
+	return false
+}
+
+func analyzeRuby(dir string, info *RepoInfo) {
+	info.Language = "Ruby"
+
+	// Check .ruby-version for interpreter version.
+	if data, err := os.ReadFile(filepath.Join(dir, ".ruby-version")); err == nil {
+		info.Version = strings.TrimSpace(string(data))
+	}
+
+	// Build command.
+	if makefileHasTarget(dir, "build") {
+		info.BuildCmd = "make build"
+	}
+
+	// Lint command.
+	hasRuboCopConfig := fsutil.FileExists(filepath.Join(dir, ".rubocop.yml")) ||
+		fsutil.FileExists(filepath.Join(dir, ".rubocop.yaml"))
+	if hasRuboCopConfig {
+		info.LintCmd = "bundle exec rubocop"
+		info.CodeStyle = "Uses RuboCop for style enforcement. Run `bundle exec rubocop` before committing."
+	} else if makefileHasTarget(dir, "lint") {
+		info.LintCmd = "make lint"
+	}
+
+	// Test command.
+	if fsutil.FileExists(filepath.Join(dir, "spec")) {
+		if makefileHasTarget(dir, "test") {
+			info.TestCmd = "make test"
+		} else {
+			info.TestCmd = "bundle exec rspec"
+		}
+	} else if fsutil.FileExists(filepath.Join(dir, "test")) {
+		if makefileHasTarget(dir, "test") {
+			info.TestCmd = "make test"
+		} else {
+			info.TestCmd = "bundle exec rake test"
+		}
+	} else if makefileHasTarget(dir, "test") {
+		info.TestCmd = "make test"
+	}
+}
+
+func analyzeJava(dir string, info *RepoInfo) {
+	// Use Kotlin for Gradle Kotlin DSL projects, Java otherwise.
+	if fsutil.FileExists(filepath.Join(dir, "build.gradle.kts")) {
+		info.Language = "Kotlin"
+	} else {
+		info.Language = "Java"
+	}
+
+	// Check .java-version for JDK version.
+	if data, err := os.ReadFile(filepath.Join(dir, ".java-version")); err == nil {
+		info.Version = strings.TrimSpace(string(data))
+	}
+
+	useGradle := fsutil.FileExists(filepath.Join(dir, "build.gradle")) ||
+		fsutil.FileExists(filepath.Join(dir, "build.gradle.kts"))
+	useMaven := fsutil.FileExists(filepath.Join(dir, "pom.xml"))
+
+	if useGradle {
+		gradleCmd := "gradle"
+		if fsutil.FileExists(filepath.Join(dir, "gradlew")) {
+			gradleCmd = "./gradlew"
+		}
+		if makefileHasTarget(dir, "build") {
+			info.BuildCmd = "make build"
+		} else {
+			info.BuildCmd = gradleCmd + " build"
+		}
+		if makefileHasTarget(dir, "test") {
+			info.TestCmd = "make test"
+		} else {
+			info.TestCmd = gradleCmd + " test"
+		}
+	} else if useMaven {
+		mvnCmd := "mvn"
+		if fsutil.FileExists(filepath.Join(dir, "mvnw")) {
+			mvnCmd = "./mvnw"
+		}
+		if makefileHasTarget(dir, "build") {
+			info.BuildCmd = "make build"
+		} else {
+			info.BuildCmd = mvnCmd + " package"
+		}
+		if makefileHasTarget(dir, "test") {
+			info.TestCmd = "make test"
+		} else {
+			info.TestCmd = mvnCmd + " test"
+		}
+	}
+}
+
+func analyzePHP(dir string, info *RepoInfo) {
+	info.Language = "PHP"
+
+	// Parse composer.json for project metadata and scripts.
+	if data, err := os.ReadFile(filepath.Join(dir, "composer.json")); err == nil {
+		var composer struct {
+			Name    string                     `json:"name"`
+			Require map[string]string          `json:"require"`
+			Scripts map[string]json.RawMessage `json:"scripts"`
+		}
+		if json.Unmarshal(data, &composer) == nil {
+			if composer.Name != "" {
+				// composer names are vendor/package — use only the package part.
+				if _, pkg, ok := strings.Cut(composer.Name, "/"); ok {
+					info.ProjectName = pkg
+				} else {
+					info.ProjectName = composer.Name
+				}
+			}
+			if phpVer, ok := composer.Require["php"]; ok {
+				v := strings.TrimLeft(phpVer, ">=^~<!")
+				if i := strings.IndexAny(v, ", "); i != -1 {
+					v = v[:i]
+				}
+				info.Version = strings.TrimSpace(v)
+			}
+			if _, ok := composer.Scripts["test"]; ok {
+				info.TestCmd = "composer test"
+			}
+			if _, ok := composer.Scripts["lint"]; ok {
+				info.LintCmd = "composer lint"
+			}
+		}
+	}
+
+	// Build command.
+	if makefileHasTarget(dir, "build") {
+		info.BuildCmd = "make build"
+	} else {
+		info.BuildCmd = "composer install"
+	}
+
+	// Fallback test detection.
+	if info.TestCmd == "" {
+		if fsutil.FileExists(filepath.Join(dir, "vendor/bin/phpunit")) {
+			info.TestCmd = "./vendor/bin/phpunit"
+		} else if fsutil.FileExists(filepath.Join(dir, "phpunit.xml")) ||
+			fsutil.FileExists(filepath.Join(dir, "phpunit.xml.dist")) {
+			info.TestCmd = "phpunit"
+		}
+	}
+
+	// Fallback lint detection.
+	if info.LintCmd == "" {
+		if fsutil.FileExists(filepath.Join(dir, "vendor/bin/phpstan")) {
+			info.LintCmd = "./vendor/bin/phpstan analyse"
+		} else if fsutil.FileExists(filepath.Join(dir, "vendor/bin/phpcs")) {
+			info.LintCmd = "./vendor/bin/phpcs"
+		}
+	}
+
+	info.CodeStyle = "Follow PSR-12 coding standards."
+}
+
+func analyzeDotNet(dir string, info *RepoInfo) {
+	info.Language = "C#"
+
+	// Parse global.json for SDK version.
+	if data, err := os.ReadFile(filepath.Join(dir, "global.json")); err == nil {
+		var globalJSON struct {
+			SDK struct {
+				Version string `json:"version"`
+			} `json:"sdk"`
+		}
+		if json.Unmarshal(data, &globalJSON) == nil && globalJSON.SDK.Version != "" {
+			info.Version = globalJSON.SDK.Version
+		}
+	}
+
+	// Build command.
+	if makefileHasTarget(dir, "build") {
+		info.BuildCmd = "make build"
+	} else {
+		info.BuildCmd = "dotnet build"
+	}
+
+	// Lint command.
+	info.LintCmd = "dotnet format --verify-no-changes"
+
+	// Test command.
+	if makefileHasTarget(dir, "test") {
+		info.TestCmd = "make test"
+	} else {
+		info.TestCmd = "dotnet test"
+	}
+
+	info.CodeStyle = "Follow .NET coding conventions. Run `dotnet format` for formatting."
 }
 
 // GenerateCLAUDEMD produces the content for a CLAUDE.md file based on detected info.
