@@ -334,9 +334,16 @@ func analyzePython(dir string, info *RepoInfo) {
 	if data, err := os.ReadFile(filepath.Join(dir, "pyproject.toml")); err == nil {
 		content := string(data)
 		scanner := bufio.NewScanner(strings.NewReader(content))
+		inProject := false
+		inPoetry := false
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
-			if strings.HasPrefix(line, "name") && strings.Contains(line, "=") && info.ProjectName == filepath.Base(dir) {
+			if strings.HasPrefix(line, "[") {
+				inProject = line == "[project]"
+				inPoetry = line == "[tool.poetry]"
+				continue
+			}
+			if (inProject || inPoetry) && strings.HasPrefix(line, "name") && strings.Contains(line, "=") && info.ProjectName == filepath.Base(dir) {
 				parts := strings.SplitN(line, "=", 2)
 				if len(parts) == 2 {
 					name := strings.Trim(strings.TrimSpace(parts[1]), `"'`)
