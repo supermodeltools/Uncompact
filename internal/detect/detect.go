@@ -705,7 +705,7 @@ func analyzeElixir(dir string, info *RepoInfo) {
 					end := strings.IndexFunc(atom, func(r rune) bool {
 						return r != '_' && !(r >= 'a' && r <= 'z') && !(r >= 'A' && r <= 'Z') && !(r >= '0' && r <= '9')
 					})
-					if end > 0 {
+					if end >= 0 {
 						atom = atom[:end]
 					}
 					if atom != "" {
