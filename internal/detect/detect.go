@@ -276,6 +276,12 @@ func analyzeNode(dir string, info *RepoInfo) {
 	if hasPrettier {
 		info.CodeStyle = "Uses Prettier for formatting. Run `" + execPrefix("prettier --write .") + "` before committing."
 	}
+
+	// Detect TypeScript via tsconfig.json / tsconfig.base.json.
+	if fsutil.FileExists(filepath.Join(dir, "tsconfig.json")) ||
+		fsutil.FileExists(filepath.Join(dir, "tsconfig.base.json")) {
+		info.Language = "TypeScript"
+	}
 }
 
 func analyzeRust(dir string, info *RepoInfo) {
