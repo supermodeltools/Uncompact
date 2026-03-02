@@ -257,8 +257,8 @@ func TestAnalyze_Node_BunLockb(t *testing.T) {
 	if info.LintCmd != "bun run lint" {
 		t.Errorf("LintCmd = %q, want %q", info.LintCmd, "bun run lint")
 	}
-	if info.TestCmd != "bun test" {
-		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "bun test")
+	if info.TestCmd != "bun run test" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "bun run test")
 	}
 }
 
