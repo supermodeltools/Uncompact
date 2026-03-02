@@ -292,6 +292,41 @@ func TestAnalyze_Node_MalformedJSON(t *testing.T) {
 	}
 }
 
+func TestAnalyze_Node_TypeScript_TsConfig(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "my-ts-app"}`)
+	writeFile(t, dir, "tsconfig.json", `{"compilerOptions": {"target": "ES2020"}}`)
+
+	info := Analyze(dir)
+
+	if info.Language != "TypeScript" {
+		t.Errorf("Language = %q, want %q", info.Language, "TypeScript")
+	}
+}
+
+func TestAnalyze_Node_TypeScript_TsConfigBase(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "my-ts-monorepo"}`)
+	writeFile(t, dir, "tsconfig.base.json", `{"compilerOptions": {"target": "ES2020"}}`)
+
+	info := Analyze(dir)
+
+	if info.Language != "TypeScript" {
+		t.Errorf("Language = %q, want %q", info.Language, "TypeScript")
+	}
+}
+
+func TestAnalyze_Node_NoTsConfig_ReportsNodeJS(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "plain-js-app"}`)
+
+	info := Analyze(dir)
+
+	if info.Language != "Node.js" {
+		t.Errorf("Language = %q, want %q", info.Language, "Node.js")
+	}
+}
+
 // --- Analyze: Unknown ---
 
 func TestAnalyze_Unknown_EmptyDir(t *testing.T) {
