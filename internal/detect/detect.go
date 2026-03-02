@@ -323,8 +323,16 @@ func analyzeRust(dir string, info *RepoInfo) {
 	} else {
 		info.BuildCmd = "cargo build"
 	}
-	info.LintCmd = "cargo clippy"
-	info.TestCmd = "cargo test"
+	if makefileHasTarget(dir, "lint") {
+		info.LintCmd = "make lint"
+	} else {
+		info.LintCmd = "cargo clippy"
+	}
+	if makefileHasTarget(dir, "test") {
+		info.TestCmd = "make test"
+	} else {
+		info.TestCmd = "cargo test"
+	}
 	info.CodeStyle = "Follow Rust conventions. Use `cargo fmt` for formatting and `cargo clippy` for linting."
 }
 

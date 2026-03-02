@@ -1176,6 +1176,32 @@ func TestAnalyze_DotNet_ProjectNameFromSln(t *testing.T) {
 	}
 }
 
+// --- Analyze: Rust ---
+
+func TestAnalyze_Rust_MakefileLintOverride(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Cargo.toml", "[package]\nname = \"myapp\"\nedition = \"2021\"\n")
+	writeFile(t, dir, "Makefile", "lint:\n\tcargo clippy --all-features\n")
+
+	info := Analyze(dir)
+
+	if info.LintCmd != "make lint" {
+		t.Errorf("LintCmd = %q, want %q", info.LintCmd, "make lint")
+	}
+}
+
+func TestAnalyze_Rust_MakefileTestOverride(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Cargo.toml", "[package]\nname = \"myapp\"\nedition = \"2021\"\n")
+	writeFile(t, dir, "Makefile", "test:\n\tcargo test --all-features\n")
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "make test" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "make test")
+	}
+}
+
 // --- LanguageSummary ---
 
 func TestLanguageSummary(t *testing.T) {
