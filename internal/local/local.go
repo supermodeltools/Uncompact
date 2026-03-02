@@ -218,7 +218,7 @@ func detectExternalDeps(rootDir string) []string {
 			if i := strings.Index(name, " @ "); i >= 0 {
 				name = name[:i]
 			}
-			for _, sep := range []string{"[", "==", ">=", "<=", "!=", "~=", ">", "<"} {
+			for _, sep := range []string{";", " #", "[", "==", ">=", "<=", "!=", "~=", ">", "<"} {
 				if i := strings.Index(name, sep); i >= 0 {
 					name = name[:i]
 				}
@@ -290,7 +290,7 @@ func detectExternalDeps(rootDir string) []string {
 						inner := rest[openIdx+1 : closeIdx]
 						for _, part := range strings.Split(inner, ",") {
 							dep := strings.Trim(part, `"', `)
-							for _, sep := range []string{"[", ">=", "<=", "==", "!=", "~=", ">", "<"} {
+							for _, sep := range []string{";", " #", "[", ">=", "<=", "==", "!=", "~=", ">", "<"} {
 								if i := strings.Index(dep, sep); i >= 0 {
 									dep = dep[:i]
 								}
@@ -313,7 +313,7 @@ func detectExternalDeps(rootDir string) []string {
 					continue
 				}
 				dep := strings.Trim(trimmed, `"', `)
-				for _, sep := range []string{"[", ">=", "<=", "==", "!=", "~=", ">", "<"} {
+				for _, sep := range []string{";", " #", "[", ">=", "<=", "==", "!=", "~=", ">", "<"} {
 					if i := strings.Index(dep, sep); i >= 0 {
 						dep = dep[:i]
 					}
