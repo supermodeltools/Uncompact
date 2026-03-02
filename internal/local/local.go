@@ -470,6 +470,36 @@ func detectLanguages(extCounts map[string]int) (primary string, languages []stri
 	return primary, languages
 }
 
+// isHorizontalRule reports whether line is a Markdown horizontal rule:
+// three or more -, *, or _ characters with optional spaces between them.
+func isHorizontalRule(line string) bool {
+	if len(line) < 3 {
+		return false
+	}
+	var ch rune
+	for _, c := range line {
+		if c == ' ' {
+			continue
+		}
+		if ch == 0 {
+			if c != '-' && c != '*' && c != '_' {
+				return false
+			}
+			ch = c
+		} else if c != ch {
+			return false
+		}
+	}
+	// Count the non-space characters
+	count := 0
+	for _, c := range line {
+		if c != ' ' {
+			count++
+		}
+	}
+	return ch != 0 && count >= 3
+}
+
 // readDescription attempts to extract a one-line project description from README.md.
 func readDescription(rootDir string) string {
 	for _, name := range []string{"README.md", "readme.md", "README.txt"} {
@@ -486,6 +516,18 @@ func readDescription(rootDir string) string {
 				continue
 			}
 			if strings.HasPrefix(line, "[![") || strings.HasPrefix(line, "![") {
+				continue
+			}
+			// Skip table rows
+			if strings.HasPrefix(line, "|") {
+				continue
+			}
+			// Skip code fence delimiters
+			if strings.HasPrefix(line, "```") || strings.HasPrefix(line, "~~~") {
+				continue
+			}
+			// Skip horizontal rules: 3+ repeated -, *, or _ (optionally with spaces)
+			if isHorizontalRule(line) {
 				continue
 			}
 			if line != "" && len(line) < 250 {
