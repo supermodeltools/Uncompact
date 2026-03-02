@@ -571,7 +571,7 @@ func readDescription(rootDir string) string {
 			if isHorizontalRule(line) {
 				continue
 			}
-			if line != "" && len(line) < 250 {
+			if line != "" && len([]rune(line)) < 250 {
 				return line
 			}
 		}
