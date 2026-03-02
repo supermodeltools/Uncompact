@@ -277,7 +277,29 @@ func detectExternalDeps(rootDir string) []string {
 			}
 			if inProjectSection && !inProjectDepsArray {
 				if strings.HasPrefix(trimmed, "dependencies") && strings.Contains(trimmed, "=") {
-					inProjectDepsArray = true
+					eqIdx := strings.Index(trimmed, "=")
+					rest := strings.TrimSpace(trimmed[eqIdx+1:])
+					openIdx := strings.Index(rest, "[")
+					closeIdx := strings.Index(rest, "]")
+					if openIdx >= 0 && closeIdx > openIdx {
+						// Single-line array: extract all deps from this line
+						inner := rest[openIdx+1 : closeIdx]
+						for _, part := range strings.Split(inner, ",") {
+							dep := strings.Trim(part, `"', `)
+							for _, sep := range []string{"[", ">=", "<=", "==", "!=", "~=", ">", "<"} {
+								if i := strings.Index(dep, sep); i >= 0 {
+									dep = dep[:i]
+								}
+							}
+							dep = strings.TrimSpace(dep)
+							if dep != "" && !strings.HasPrefix(dep, "#") {
+								add(dep)
+							}
+						}
+					} else {
+						// Multi-line array: collect deps on subsequent lines
+						inProjectDepsArray = true
+					}
 					continue
 				}
 			}
