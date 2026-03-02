@@ -641,7 +641,7 @@ func analyzeDotNet(dir string, info *RepoInfo) {
 func analyzeSwift(dir string, info *RepoInfo) {
 	info.Language = "Swift"
 
-	// Parse Package.swift for swift-tools-version comment.
+	// Parse Package.swift for swift-tools-version comment and package name.
 	if data, err := os.ReadFile(filepath.Join(dir, "Package.swift")); err == nil {
 		scanner := bufio.NewScanner(strings.NewReader(string(data)))
 		for scanner.Scan() {
@@ -652,7 +652,14 @@ func analyzeSwift(dir string, info *RepoInfo) {
 				if ver != "" {
 					info.Version = ver
 				}
-				break
+				continue
+			}
+			// Extract package name from e.g. name: "MyLib" (skip comments).
+			if !strings.HasPrefix(line, "//") && strings.Contains(line, "name:") {
+				parts := strings.SplitN(line, "\"", 3)
+				if len(parts) >= 3 && parts[1] != "" {
+					info.ProjectName = parts[1]
+				}
 			}
 		}
 	}
