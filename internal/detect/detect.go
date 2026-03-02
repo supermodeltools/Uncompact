@@ -93,8 +93,11 @@ func makefileHasTarget(dir, target string) bool {
 	scanner := bufio.NewScanner(strings.NewReader(string(data)))
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, target+":") || strings.HasPrefix(line, target+" ") {
-			return true
+		if strings.HasPrefix(line, target) {
+			rest := strings.TrimLeft(line[len(target):], " \t")
+			if strings.HasPrefix(rest, ":") {
+				return true
+			}
 		}
 	}
 	return false
