@@ -235,6 +235,12 @@ func analyzeNode(dir string, info *RepoInfo) {
 			info.Version = strings.TrimSpace(string(data))
 		}
 	}
+	// Check .node-version (used by nodenv, mise, fnm).
+	if info.Version == "" {
+		if data, err := os.ReadFile(filepath.Join(dir, ".node-version")); err == nil {
+			info.Version = strings.TrimSpace(string(data))
+		}
+	}
 
 	// execPrefix returns the correct executor prefix for the detected package manager.
 	execPrefix := func(tool string) string {

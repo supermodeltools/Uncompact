@@ -151,6 +151,18 @@ func TestAnalyze_Node_NvmrcFallback(t *testing.T) {
 	}
 }
 
+func TestAnalyze_Node_NodeVersionFileFallback(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, ".node-version", "20.11.0\n")
+
+	info := Analyze(dir)
+
+	if info.Version != "20.11.0" {
+		t.Errorf("Version = %q, want %q", info.Version, "20.11.0")
+	}
+}
+
 func TestAnalyze_Node_ESLintConfig(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "package.json", `{"name": "proj"}`)
