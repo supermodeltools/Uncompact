@@ -139,6 +139,9 @@ func detectExternalDeps(rootDir string) []string {
 	const maxExternalDeps = 15
 	seen := make(map[string]bool)
 	var deps []string
+	// npm deps are collected separately so runtime deps can be prioritised over
+	// devDependencies when filling the cap. Both groups are merged at the end.
+	var npmRuntime, npmDev []string
 
 	add := func(name string) {
 		name = strings.TrimSpace(name)
@@ -190,7 +193,10 @@ func detectExternalDeps(rootDir string) []string {
 		}
 	}
 
-	// package.json: extract keys from dependencies and devDependencies.
+	// package.json: collect runtime and devDependencies into separate slices so
+	// that runtime deps are preferred when filling the 15-dep cap. Without this,
+	// alphabetically-early devDeps like @babel/*, @types/*, @eslint/* crowd out
+	// the actual runtime stack (react, express, prisma, etc.).
 	if data, err := os.ReadFile(filepath.Join(rootDir, "package.json")); err == nil {
 		var pkg struct {
 			Dependencies    map[string]json.RawMessage `json:"dependencies"`
@@ -198,10 +204,14 @@ func detectExternalDeps(rootDir string) []string {
 		}
 		if json.Unmarshal(data, &pkg) == nil {
 			for name := range pkg.Dependencies {
-				add(name)
+				if name = strings.TrimSpace(name); name != "" {
+					npmRuntime = append(npmRuntime, name)
+				}
 			}
 			for name := range pkg.DevDependencies {
-				add(name)
+				if name = strings.TrimSpace(name); name != "" {
+					npmDev = append(npmDev, name)
+				}
 			}
 		}
 	}
@@ -334,10 +344,29 @@ func detectExternalDeps(rootDir string) []string {
 		}
 	}
 
+	// Sort and cap non-npm manifest deps (go.mod, requirements.txt, etc.).
 	sort.Strings(deps)
 	if len(deps) > maxExternalDeps {
 		deps = deps[:maxExternalDeps]
 	}
+
+	// Merge npm deps in priority order: runtime first, then devDeps to fill the
+	// remaining budget. Within each tier packages are sorted alphabetically.
+	sort.Strings(npmRuntime)
+	for _, name := range npmRuntime {
+		if len(deps) >= maxExternalDeps {
+			break
+		}
+		add(name)
+	}
+	sort.Strings(npmDev)
+	for _, name := range npmDev {
+		if len(deps) >= maxExternalDeps {
+			break
+		}
+		add(name)
+	}
+
 	return deps
 }
 

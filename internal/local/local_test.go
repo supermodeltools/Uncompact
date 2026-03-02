@@ -787,6 +787,47 @@ dependencies = [
 	}
 }
 
+// TestDetectExternalDeps_PackageJSON_RuntimeDepsPreferredOverDevDeps verifies
+// that runtime dependencies are preferred over devDependencies when filling the
+// 15-dep cap. Without this, packages like @babel/*, @types/*, @eslint/* would
+// dominate because they sort alphabetically before runtime deps.
+func TestDetectExternalDeps_PackageJSON_RuntimeDepsPreferredOverDevDeps(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{
+  "dependencies": {
+    "react": "^18.0.0",
+    "express": "^4.18.0",
+    "axios": "^1.4.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.0.0",
+    "@babel/preset-env": "^7.0.0",
+    "@babel/preset-react": "^7.0.0",
+    "@eslint/js": "^8.0.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "@types/express": "^4.0.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/jest-dom": "^6.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0",
+    "eslint": "^8.0.0"
+  }
+}`)
+	deps := detectExternalDeps(dir)
+
+	// All runtime deps must appear even though devDeps sort before them.
+	for _, want := range []string{"react", "express", "axios"} {
+		if !containsDep(deps, want) {
+			t.Errorf("expected runtime dep %q in deps, got %v", want, deps)
+		}
+	}
+	if len(deps) > 15 {
+		t.Errorf("deps len = %d, want ≤15", len(deps))
+	}
+}
+
 func TestDetectExternalDeps_CapAt15(t *testing.T) {
 	dir := t.TempDir()
 	// Write a requirements.txt with 20 distinct packages.
