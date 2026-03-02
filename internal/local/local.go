@@ -274,6 +274,9 @@ func readDescription(rootDir string) string {
 			if strings.HasPrefix(line, "#") {
 				continue
 			}
+			if strings.HasPrefix(line, "[![") || strings.HasPrefix(line, "![") {
+				continue
+			}
 			if line != "" && len(line) < 250 {
 				return line
 			}
