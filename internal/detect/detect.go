@@ -669,6 +669,9 @@ func analyzeElixir(dir string, info *RepoInfo) {
 		scanner := bufio.NewScanner(strings.NewReader(content))
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
+			if strings.HasPrefix(line, "#") {
+				continue
+			}
 			// Look for: elixir: "~> 1.15"
 			if strings.Contains(line, "elixir:") && strings.Contains(line, "\"") {
 				parts := strings.SplitN(line, "\"", 3)
