@@ -567,6 +567,9 @@ end
 	if info.Language != "Elixir" {
 		t.Errorf("Language = %q, want %q", info.Language, "Elixir")
 	}
+	if info.ProjectName != "my_app" {
+		t.Errorf("ProjectName = %q, want %q", info.ProjectName, "my_app")
+	}
 	if info.Version != "1.15" {
 		t.Errorf("Version = %q, want %q", info.Version, "1.15")
 	}

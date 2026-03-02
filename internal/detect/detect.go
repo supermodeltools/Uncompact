@@ -677,7 +677,7 @@ func analyzeSwift(dir string, info *RepoInfo) {
 func analyzeElixir(dir string, info *RepoInfo) {
 	info.Language = "Elixir"
 
-	// Parse mix.exs for elixir version and credo dependency.
+	// Parse mix.exs for app name, elixir version, and credo dependency.
 	if data, err := os.ReadFile(filepath.Join(dir, "mix.exs")); err == nil {
 		content := string(data)
 		scanner := bufio.NewScanner(strings.NewReader(content))
@@ -686,8 +686,25 @@ func analyzeElixir(dir string, info *RepoInfo) {
 			if strings.HasPrefix(line, "#") {
 				continue
 			}
+			// Look for: app: :my_app
+			if info.ProjectName == "" && strings.Contains(line, "app:") {
+				idx := strings.Index(line, "app:")
+				rest := strings.TrimSpace(line[idx+4:])
+				if strings.HasPrefix(rest, ":") {
+					atom := strings.TrimPrefix(rest, ":")
+					end := strings.IndexFunc(atom, func(r rune) bool {
+						return r != '_' && !(r >= 'a' && r <= 'z') && !(r >= 'A' && r <= 'Z') && !(r >= '0' && r <= '9')
+					})
+					if end > 0 {
+						atom = atom[:end]
+					}
+					if atom != "" {
+						info.ProjectName = atom
+					}
+				}
+			}
 			// Look for: elixir: "~> 1.15"
-			if strings.Contains(line, "elixir:") && strings.Contains(line, "\"") {
+			if info.Version == "" && strings.Contains(line, "elixir:") && strings.Contains(line, "\"") {
 				parts := strings.SplitN(line, "\"", 3)
 				if len(parts) >= 3 {
 					ver := strings.TrimLeft(parts[1], "~>^<!=")
@@ -696,7 +713,6 @@ func analyzeElixir(dir string, info *RepoInfo) {
 						info.Version = ver
 					}
 				}
-				break
 			}
 		}
 		// Lint: mix credo if credo appears in deps.
