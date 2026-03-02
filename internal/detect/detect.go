@@ -462,6 +462,49 @@ func analyzeRuby(dir string, info *RepoInfo) {
 		info.Version = strings.TrimSpace(string(data))
 	}
 
+	// Extract gem name from *.gemspec.
+	if entries, err := os.ReadDir(dir); err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".gemspec") {
+				continue
+			}
+			if data, err := os.ReadFile(filepath.Join(dir, entry.Name())); err == nil {
+				scanner := bufio.NewScanner(strings.NewReader(string(data)))
+				for scanner.Scan() {
+					line := strings.TrimSpace(scanner.Text())
+					if strings.HasPrefix(line, "#") {
+						continue
+					}
+					// Match: spec.name = "..." or s.name = '...'
+					var rest string
+					if idx := strings.Index(line, ".name"); idx >= 0 {
+						rest = strings.TrimSpace(line[idx+5:])
+					}
+					if rest == "" || !strings.HasPrefix(rest, "=") {
+						continue
+					}
+					rest = strings.TrimSpace(strings.TrimPrefix(rest, "="))
+					if len(rest) < 2 {
+						continue
+					}
+					quote := rest[0]
+					if quote != '"' && quote != '\'' {
+						continue
+					}
+					end := strings.IndexByte(rest[1:], quote)
+					if end < 0 {
+						continue
+					}
+					name := rest[1 : end+1]
+					if name != "" {
+						info.ProjectName = name
+					}
+				}
+			}
+			break
+		}
+	}
+
 	// Build command.
 	if makefileHasTarget(dir, "build") {
 		info.BuildCmd = "make build"
