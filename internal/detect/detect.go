@@ -390,7 +390,7 @@ func analyzePython(dir string, info *RepoInfo) {
 		if strings.Contains(content, "pytest") {
 			info.TestCmd = "pytest"
 		}
-		if strings.Contains(content, "uv") {
+		if fsutil.FileExists(filepath.Join(dir, "uv.lock")) || strings.Contains(content, "[tool.uv]") {
 			info.CodeStyle = "Uses uv for dependency management. Run commands via `uv run`."
 		}
 	}
