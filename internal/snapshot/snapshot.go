@@ -22,6 +22,13 @@ const (
 // Always nil in production.
 var testHookAfterHeaderlessStat func()
 
+// testHookBeforeExpiredRemove is called during testing immediately before the
+// os.Remove call in the TTL expiry block. It fires for both header and headerless
+// paths, allowing tests to simulate a concurrent snapshot.Write to verify the
+// TOCTOU guard on the header path.
+// Always nil in production.
+var testHookBeforeExpiredRemove func()
+
 // SessionSnapshot holds the captured session state before compaction.
 type SessionSnapshot struct {
 	Timestamp time.Time
@@ -72,6 +79,11 @@ func ReadWithTTL(projectRoot string, ttl time.Duration) (*SessionSnapshot, error
 		return nil, fmt.Errorf("reading snapshot: %w", err)
 	}
 
+	// Stat the file immediately after reading to capture its mtime for the
+	// TOCTOU re-stat guard. This must be done before header parsing so the
+	// guard covers both the header path and the headerless fallback path.
+	statInfo, _ := os.Stat(Path(projectRoot))
+
 	content := string(data)
 	var timestamp time.Time
 
@@ -102,15 +114,12 @@ func ReadWithTTL(projectRoot string, ttl time.Duration) (*SessionSnapshot, error
 	// snapshots (e.g. written by a pre-header version of the tool, created
 	// manually, or partially written) are still subject to TTL rather than
 	// being injected indefinitely.
-	var statInfo os.FileInfo // retained for the TOCTOU re-stat guard below
 	if timestamp.IsZero() {
-		info, statErr := os.Stat(Path(projectRoot))
-		if statErr != nil {
+		if statInfo == nil {
 			_ = os.Remove(Path(projectRoot))
 			return nil, nil
 		}
-		statInfo = info
-		timestamp = info.ModTime()
+		timestamp = statInfo.ModTime()
 		if testHookAfterHeaderlessStat != nil {
 			testHookAfterHeaderlessStat()
 		}
@@ -118,11 +127,14 @@ func ReadWithTTL(projectRoot string, ttl time.Duration) (*SessionSnapshot, error
 
 	// Enforce TTL
 	if ttl > 0 && time.Since(timestamp) > ttl {
+		if testHookBeforeExpiredRemove != nil {
+			testHookBeforeExpiredRemove()
+		}
 		if statInfo != nil {
-			// Headerless path: re-stat before removing to guard against a concurrent
-			// snapshot.Write atomically replacing the file (via rename) between our
-			// initial Stat and this Remove (TOCTOU). If the mtime has advanced, a
-			// fresh snapshot was written — leave it intact.
+			// Re-stat guard: covers both the header and headerless paths. A
+			// concurrent snapshot.Write may have atomically replaced the file (via
+			// rename) between our initial Stat and this Remove (TOCTOU). If the
+			// mtime has advanced, a fresh snapshot was written — leave it intact.
 			if recheck, recheckErr := os.Stat(Path(projectRoot)); recheckErr == nil && recheck.ModTime().After(statInfo.ModTime()) {
 				return nil, nil
 			}
