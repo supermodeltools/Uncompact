@@ -202,7 +202,7 @@ func analyzeNode(dir string, info *RepoInfo) {
 				info.LintCmd = pkgMgr + " run lint"
 			}
 			if _, ok := pkg.Scripts["test"]; ok {
-				info.TestCmd = pkgMgr + " test"
+				info.TestCmd = pkgMgr + " run test"
 			}
 		}
 	}
