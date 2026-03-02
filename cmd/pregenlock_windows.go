@@ -3,6 +3,9 @@
 package cmd
 
 import (
+	"path/filepath"
+	"strings"
+
 	"golang.org/x/sys/windows"
 )
 
@@ -16,8 +19,12 @@ import (
 //
 // If acquired is false and err is nil, another pregen instance already holds
 // the mutex — the caller should exit silently.
-func acquirePregenLock(_ string) (unlock func(), acquired bool, err error) {
-	name, err := windows.UTF16PtrFromString(`Local\UncompactPregen`)
+func acquirePregenLock(path string) (unlock func(), acquired bool, err error) {
+	// Derive a project-specific mutex name from the lock file's base name so
+	// that concurrent pregen runs for different projects do not block each other.
+	// Mutex names may not contain backslashes outside the "Local\" prefix segment.
+	safeName := strings.ReplaceAll(filepath.Base(path), "\\", "_")
+	name, err := windows.UTF16PtrFromString(`Local\UncompactPregen-` + safeName)
 	if err != nil {
 		return nil, false, err
 	}
