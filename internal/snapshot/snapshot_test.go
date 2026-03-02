@@ -154,6 +154,50 @@ func TestWrite_CreatesDirectory(t *testing.T) {
 	}
 }
 
+// TestReadWithTTL_NoHeader_ConcurrentWrite_PreservesFile verifies that the TOCTOU
+// guard works: if a concurrent snapshot.Write atomically replaces the file between
+// ReadWithTTL's initial os.Stat and its os.Remove, the fresh snapshot is preserved.
+func TestReadWithTTL_NoHeader_ConcurrentWrite_PreservesFile(t *testing.T) {
+	dir := t.TempDir()
+	p := Path(dir)
+
+	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	// Write an expired headerless snapshot (simulates a legacy file).
+	if err := os.WriteFile(p, []byte("## Old Session State"), 0600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	backdated := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(p, backdated, backdated); err != nil {
+		t.Fatalf("Chtimes: %v", err)
+	}
+
+	// Inject a concurrent write that fires after ReadWithTTL has captured the old
+	// mtime but before it reaches os.Remove — this is the TOCTOU window.
+	testHookAfterHeaderlessStat = func() {
+		testHookAfterHeaderlessStat = nil // one-shot
+		if err := Write(dir, &SessionSnapshot{
+			Timestamp: time.Now().UTC(),
+			Content:   "## Fresh Session State",
+		}); err != nil {
+			t.Errorf("concurrent Write: %v", err)
+		}
+	}
+	t.Cleanup(func() { testHookAfterHeaderlessStat = nil })
+
+	// ReadWithTTL must detect that the mtime advanced (the hook replaced the file)
+	// and skip os.Remove, leaving the fresh snapshot intact.
+	if _, err := ReadWithTTL(dir, time.Hour); err != nil {
+		t.Fatalf("ReadWithTTL: %v", err)
+	}
+
+	if _, statErr := os.Stat(p); os.IsNotExist(statErr) {
+		t.Error("ReadWithTTL deleted the fresh snapshot written by a concurrent Write; TOCTOU guard is missing")
+	}
+}
+
 func TestReadWithTTL_NoHeader_ContentPreserved(t *testing.T) {
 	dir := t.TempDir()
 

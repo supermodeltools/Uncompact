@@ -16,6 +16,12 @@ const (
 	headerSuffix     = " -->"
 )
 
+// testHookAfterHeaderlessStat is called during testing after the initial os.Stat
+// in the headerless mtime fallback path, immediately before the TTL expiry check.
+// It allows tests to simulate a concurrent snapshot.Write to verify the TOCTOU guard.
+// Always nil in production.
+var testHookAfterHeaderlessStat func()
+
 // SessionSnapshot holds the captured session state before compaction.
 type SessionSnapshot struct {
 	Timestamp time.Time
@@ -96,17 +102,31 @@ func ReadWithTTL(projectRoot string, ttl time.Duration) (*SessionSnapshot, error
 	// snapshots (e.g. written by a pre-header version of the tool, created
 	// manually, or partially written) are still subject to TTL rather than
 	// being injected indefinitely.
+	var statInfo os.FileInfo // retained for the TOCTOU re-stat guard below
 	if timestamp.IsZero() {
 		info, statErr := os.Stat(Path(projectRoot))
 		if statErr != nil {
 			_ = os.Remove(Path(projectRoot))
 			return nil, nil
 		}
+		statInfo = info
 		timestamp = info.ModTime()
+		if testHookAfterHeaderlessStat != nil {
+			testHookAfterHeaderlessStat()
+		}
 	}
 
 	// Enforce TTL
 	if ttl > 0 && time.Since(timestamp) > ttl {
+		if statInfo != nil {
+			// Headerless path: re-stat before removing to guard against a concurrent
+			// snapshot.Write atomically replacing the file (via rename) between our
+			// initial Stat and this Remove (TOCTOU). If the mtime has advanced, a
+			// fresh snapshot was written — leave it intact.
+			if recheck, recheckErr := os.Stat(Path(projectRoot)); recheckErr == nil && recheck.ModTime().After(statInfo.ModTime()) {
+				return nil, nil
+			}
+		}
 		_ = os.Remove(Path(projectRoot)) // clean up stale file
 		return nil, nil
 	}
