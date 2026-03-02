@@ -175,6 +175,42 @@ func TestAnalyze_Node_ESLintConfig(t *testing.T) {
 	}
 }
 
+func TestAnalyze_Node_ESLintConfigTS(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "eslint.config.ts", ``)
+
+	info := Analyze(dir)
+
+	if info.LintCmd != "npx eslint ." {
+		t.Errorf("LintCmd = %q, want %q", info.LintCmd, "npx eslint .")
+	}
+}
+
+func TestAnalyze_Node_ESLintConfigMTS(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "eslint.config.mts", ``)
+
+	info := Analyze(dir)
+
+	if info.LintCmd != "npx eslint ." {
+		t.Errorf("LintCmd = %q, want %q", info.LintCmd, "npx eslint .")
+	}
+}
+
+func TestAnalyze_Node_ESLintConfigCTS(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "proj"}`)
+	writeFile(t, dir, "eslint.config.cts", ``)
+
+	info := Analyze(dir)
+
+	if info.LintCmd != "npx eslint ." {
+		t.Errorf("LintCmd = %q, want %q", info.LintCmd, "npx eslint .")
+	}
+}
+
 func TestAnalyze_Node_BiomeConfig(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "package.json", `{"name": "proj"}`)
