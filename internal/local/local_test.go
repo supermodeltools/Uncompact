@@ -646,6 +646,30 @@ opt-level = 3
 	}
 }
 
+func TestDetectExternalDeps_CargoToml_MultiLineInlineTable(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Cargo.toml", `[dependencies]
+tokio = {
+    version = "1",
+    features = ["full"]
+}
+serde = "1.0"
+`)
+	deps := detectExternalDeps(dir)
+	if !containsDep(deps, "tokio") {
+		t.Errorf("expected 'tokio' in deps, got %v", deps)
+	}
+	if !containsDep(deps, "serde") {
+		t.Errorf("expected 'serde' in deps, got %v", deps)
+	}
+	if containsDep(deps, "version") {
+		t.Errorf("'version' should not appear as a dep, got %v", deps)
+	}
+	if containsDep(deps, "features") {
+		t.Errorf("'features' should not appear as a dep, got %v", deps)
+	}
+}
+
 func TestDetectExternalDeps_Gemfile_SingleQuotes(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Gemfile", `source 'https://rubygems.org'
