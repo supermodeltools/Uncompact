@@ -215,7 +215,12 @@ func analyzeNode(dir string, info *RepoInfo) {
 				info.LintCmd = pkgMgr + " run lint"
 			}
 			if _, ok := pkg.Scripts["test"]; ok {
-				info.TestCmd = pkgMgr + " run test"
+				switch pkgMgr {
+				case "npm", "yarn", "pnpm":
+					info.TestCmd = pkgMgr + " test"
+				default: // bun
+					info.TestCmd = pkgMgr + " run test"
+				}
 			}
 		}
 	}
