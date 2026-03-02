@@ -21,7 +21,10 @@ var rendererTmpl = gotmpl.Must(
 		"join":         strings.Join,
 		"languageList": func(langs []string) string { return strings.Join(langs, ", ") },
 		"add1":         func(i int) int { return i + 1 },
-		"blockquote":   func(s string) string { return strings.ReplaceAll(s, "\n", "\n> ") },
+		"blockquote": func(s string) string {
+			s = strings.TrimRight(s, "\r\n")
+			return strings.ReplaceAll(s, "\n", "\n> ")
+		},
 	}).Parse(contextBombTmpl),
 )
 
@@ -406,7 +409,8 @@ func buildWorkingMemorySection(wm *project.WorkingMemory, budget int) string {
 
 	var issueBodySection string
 	if wm.IssueBody != "" {
-		issueBodySection = fmt.Sprintf("> %s\n", strings.ReplaceAll(wm.IssueBody, "\n", "\n> "))
+		trimmed := strings.TrimRight(wm.IssueBody, "\r\n")
+		issueBodySection = fmt.Sprintf("> %s\n", strings.ReplaceAll(trimmed, "\n", "\n> "))
 	}
 
 	var uncommittedSection string

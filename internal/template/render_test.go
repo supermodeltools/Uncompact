@@ -335,6 +335,50 @@ func TestTruncate_ResponsibilitiesAndDependsOnIncluded(t *testing.T) {
 	}
 }
 
+func TestRender_BlockquoteNoTrailingLine(t *testing.T) {
+	// Issue bodies ending with \n must not produce a trailing "> " line.
+	graph := testGraph(testDomain("core", "Core domain"))
+	wm := &project.WorkingMemory{
+		Branch:      "feature/test",
+		IssueNumber: 1,
+		IssueTitle:  "Test issue",
+		IssueBody:   "Fix the bug\n",
+	}
+	result, _, err := Render(graph, "TestProject", RenderOptions{
+		MaxTokens:     2000,
+		WorkingMemory: wm,
+	})
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
+	if strings.Contains(result, "> \n") {
+		t.Errorf("blockquote produced trailing '> ' line; output snippet:\n%s",
+			result[strings.Index(result, "Fix the bug"):])
+	}
+}
+
+func TestRender_BlockquoteMultilineNoTrailingLine(t *testing.T) {
+	// Multi-paragraph bodies should render inner blank lines as "> " but not produce a trailing one.
+	graph := testGraph(testDomain("core", "Core domain"))
+	wm := &project.WorkingMemory{
+		Branch:      "feature/test",
+		IssueNumber: 1,
+		IssueTitle:  "Test issue",
+		IssueBody:   "Paragraph one\n\nParagraph two\n",
+	}
+	result, _, err := Render(graph, "TestProject", RenderOptions{
+		MaxTokens:     2000,
+		WorkingMemory: wm,
+	})
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
+	if strings.Contains(result, "> \n**") || strings.HasSuffix(strings.TrimRight(result, "\n"), "> ") {
+		t.Errorf("blockquote produced trailing '> ' line; output snippet:\n%s",
+			result[strings.Index(result, "Paragraph one"):])
+	}
+}
+
 func TestTruncate_DomainMapHeaderTokensAccounted(t *testing.T) {
 	// Regression test for issue #197.
 	// The "## Domain Map" header must be counted against the token budget when
