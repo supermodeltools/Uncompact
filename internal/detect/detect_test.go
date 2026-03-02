@@ -640,6 +640,42 @@ func TestAnalyze_Python_PythonVersionFile(t *testing.T) {
 	}
 }
 
+func TestAnalyze_Python_UvicornDoesNotSetUvCodeStyle(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "pyproject.toml", "[project]\ndependencies = [\"uvicorn>=0.23\", \"uvloop\"]\n")
+
+	info := Analyze(dir)
+
+	if info.CodeStyle != "" {
+		t.Errorf("CodeStyle = %q, want empty (uvicorn/uvloop should not trigger uv detection)", info.CodeStyle)
+	}
+}
+
+func TestAnalyze_Python_UvLockFileSetsCodeStyle(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "pyproject.toml", "[project]\nname = \"myapp\"\n")
+	writeFile(t, dir, "uv.lock", "# uv lockfile\n")
+
+	info := Analyze(dir)
+
+	want := "Uses uv for dependency management. Run commands via `uv run`."
+	if info.CodeStyle != want {
+		t.Errorf("CodeStyle = %q, want %q", info.CodeStyle, want)
+	}
+}
+
+func TestAnalyze_Python_ToolUvSectionSetsCodeStyle(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "pyproject.toml", "[project]\nname = \"myapp\"\n\n[tool.uv]\ndev-dependencies = [\"pytest\"]\n")
+
+	info := Analyze(dir)
+
+	want := "Uses uv for dependency management. Run commands via `uv run`."
+	if info.CodeStyle != want {
+		t.Errorf("CodeStyle = %q, want %q", info.CodeStyle, want)
+	}
+}
+
 // --- Analyze: Swift ---
 
 func TestAnalyze_Swift_Minimal(t *testing.T) {
