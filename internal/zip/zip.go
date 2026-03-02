@@ -128,7 +128,6 @@ func RepoZip(ctx context.Context, root string) ([]byte, SkipReport, error) {
 
 	var totalSize int64
 	var report SkipReport
-	var budgetExceeded bool
 
 	// Build the set of git-tracked/unignored files so we can respect .gitignore.
 	// gitFiles is nil when git is unavailable; in that case we fall back to the
@@ -199,9 +198,9 @@ func RepoZip(ctx context.Context, root string) ([]byte, SkipReport, error) {
 			return nil
 		}
 
-		// Check total size budget; once exceeded, count remaining files but don't add them.
-		if budgetExceeded || totalSize+info.Size() > maxTotalSize {
-			budgetExceeded = true
+		// Check total size budget; skip any file that would push us over, but
+		// continue walking so smaller subsequent files can still be included.
+		if totalSize+info.Size() > maxTotalSize {
 			report.BudgetSkipped++
 			return nil
 		}
