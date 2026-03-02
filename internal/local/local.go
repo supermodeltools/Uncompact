@@ -230,7 +230,7 @@ func detectExternalDeps(rootDir string) []string {
 			trimmed := strings.TrimSpace(line)
 			if strings.HasPrefix(trimmed, "[") {
 				inDeps = trimmed == "[dependencies]" || trimmed == "[dev-dependencies]" || trimmed == "[build-dependencies]" ||
-				trimmed == "[workspace.dependencies]" || trimmed == "[workspace.dev-dependencies]"
+				trimmed == "[workspace.dependencies]" || trimmed == "[workspace.dev-dependencies]" || trimmed == "[workspace.build-dependencies]"
 				continue
 			}
 			if inDeps && strings.Contains(trimmed, "=") && !strings.HasPrefix(trimmed, "#") {
