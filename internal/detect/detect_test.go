@@ -1154,6 +1154,28 @@ func TestAnalyze_DotNet_MakefileOverrides(t *testing.T) {
 	}
 }
 
+func TestAnalyze_DotNet_ProjectNameFromCsproj(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "MyWebApi.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>\n")
+
+	info := Analyze(dir)
+
+	if info.ProjectName != "MyWebApi" {
+		t.Errorf("ProjectName = %q, want %q", info.ProjectName, "MyWebApi")
+	}
+}
+
+func TestAnalyze_DotNet_ProjectNameFromSln(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "MySolution.sln", "\n")
+
+	info := Analyze(dir)
+
+	if info.ProjectName != "MySolution" {
+		t.Errorf("ProjectName = %q, want %q", info.ProjectName, "MySolution")
+	}
+}
+
 // --- LanguageSummary ---
 
 func TestLanguageSummary(t *testing.T) {
