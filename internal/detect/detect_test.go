@@ -837,6 +837,250 @@ func TestAnalyze_Ruby_MakefileLint(t *testing.T) {
 	}
 }
 
+// --- Analyze: Java / Kotlin ---
+
+func TestAnalyze_Java_GradleProject(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "build.gradle", "plugins { id 'java' }\n")
+
+	info := Analyze(dir)
+
+	if info.Language != "Java" {
+		t.Errorf("Language = %q, want %q", info.Language, "Java")
+	}
+	if info.BuildCmd != "gradle build" {
+		t.Errorf("BuildCmd = %q, want %q", info.BuildCmd, "gradle build")
+	}
+	if info.TestCmd != "gradle test" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "gradle test")
+	}
+}
+
+func TestAnalyze_Java_GradleKotlinDSL(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "build.gradle.kts", "plugins { kotlin(\"jvm\") }\n")
+
+	info := Analyze(dir)
+
+	if info.Language != "Kotlin" {
+		t.Errorf("Language = %q, want %q", info.Language, "Kotlin")
+	}
+	if info.BuildCmd != "gradle build" {
+		t.Errorf("BuildCmd = %q, want %q", info.BuildCmd, "gradle build")
+	}
+}
+
+func TestAnalyze_Java_GradleWrapper(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "build.gradle", "plugins { id 'java' }\n")
+	writeFile(t, dir, "gradlew", "#!/bin/sh\n")
+
+	info := Analyze(dir)
+
+	if info.BuildCmd != "./gradlew build" {
+		t.Errorf("BuildCmd = %q, want %q", info.BuildCmd, "./gradlew build")
+	}
+	if info.TestCmd != "./gradlew test" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "./gradlew test")
+	}
+}
+
+func TestAnalyze_Java_MavenWithWrapper(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "pom.xml", "<project></project>\n")
+	writeFile(t, dir, "mvnw", "#!/bin/sh\n")
+
+	info := Analyze(dir)
+
+	if info.Language != "Java" {
+		t.Errorf("Language = %q, want %q", info.Language, "Java")
+	}
+	if info.BuildCmd != "./mvnw package" {
+		t.Errorf("BuildCmd = %q, want %q", info.BuildCmd, "./mvnw package")
+	}
+	if info.TestCmd != "./mvnw test" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "./mvnw test")
+	}
+}
+
+func TestAnalyze_Java_VersionFile(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "build.gradle", "plugins { id 'java' }\n")
+	writeFile(t, dir, ".java-version", "21\n")
+
+	info := Analyze(dir)
+
+	if info.Version != "21" {
+		t.Errorf("Version = %q, want %q", info.Version, "21")
+	}
+}
+
+func TestAnalyze_Java_MakefileOverrides(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "build.gradle", "plugins { id 'java' }\n")
+	writeFile(t, dir, "Makefile", "build:\n\t./gradlew build\n\ntest:\n\t./gradlew test\n")
+
+	info := Analyze(dir)
+
+	if info.BuildCmd != "make build" {
+		t.Errorf("BuildCmd = %q, want %q", info.BuildCmd, "make build")
+	}
+	if info.TestCmd != "make test" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "make test")
+	}
+}
+
+// --- Analyze: PHP ---
+
+func TestAnalyze_PHP_ComposerJson(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "composer.json", `{
+		"name": "myvendor/mypackage",
+		"require": {"php": ">=8.1"},
+		"scripts": {
+			"test": "phpunit",
+			"lint": "phpcs"
+		}
+	}`)
+
+	info := Analyze(dir)
+
+	if info.Language != "PHP" {
+		t.Errorf("Language = %q, want %q", info.Language, "PHP")
+	}
+	if info.ProjectName != "mypackage" {
+		t.Errorf("ProjectName = %q, want %q", info.ProjectName, "mypackage")
+	}
+	if info.Version != "8.1" {
+		t.Errorf("Version = %q, want %q", info.Version, "8.1")
+	}
+	if info.TestCmd != "composer test" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "composer test")
+	}
+	if info.LintCmd != "composer lint" {
+		t.Errorf("LintCmd = %q, want %q", info.LintCmd, "composer lint")
+	}
+}
+
+func TestAnalyze_PHP_VendorPrefixStripped(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "composer.json", `{"name": "acme/my-lib"}`)
+
+	info := Analyze(dir)
+
+	if info.ProjectName != "my-lib" {
+		t.Errorf("ProjectName = %q, want %q (vendor prefix must be stripped)", info.ProjectName, "my-lib")
+	}
+}
+
+func TestAnalyze_PHP_FallbackPhpunitXml(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "composer.json", `{"name": "myvendor/myapp"}`)
+	writeFile(t, dir, "phpunit.xml", "<phpunit></phpunit>\n")
+
+	info := Analyze(dir)
+
+	if info.TestCmd != "phpunit" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "phpunit")
+	}
+}
+
+func TestAnalyze_PHP_FallbackPhpstan(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "composer.json", `{"name": "myvendor/myapp"}`)
+	if err := os.MkdirAll(filepath.Join(dir, "vendor/bin"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, dir, "vendor/bin/phpstan", "#!/bin/sh\n")
+
+	info := Analyze(dir)
+
+	if info.LintCmd != "./vendor/bin/phpstan analyse" {
+		t.Errorf("LintCmd = %q, want %q", info.LintCmd, "./vendor/bin/phpstan analyse")
+	}
+}
+
+func TestAnalyze_PHP_DefaultBuildCmd(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "composer.json", `{"name": "myvendor/myapp"}`)
+
+	info := Analyze(dir)
+
+	if info.BuildCmd != "composer install" {
+		t.Errorf("BuildCmd = %q, want %q", info.BuildCmd, "composer install")
+	}
+}
+
+// --- Analyze: C#/.NET ---
+
+func TestAnalyze_DotNet_GlobalJsonVersion(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "global.json", `{"sdk": {"version": "8.0.100"}}`)
+
+	info := Analyze(dir)
+
+	if info.Language != "C#" {
+		t.Errorf("Language = %q, want %q", info.Language, "C#")
+	}
+	if info.Version != "8.0.100" {
+		t.Errorf("Version = %q, want %q", info.Version, "8.0.100")
+	}
+}
+
+func TestAnalyze_DotNet_DirectoryBuildProps(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Directory.Build.props", "<Project></Project>\n")
+
+	info := Analyze(dir)
+
+	if info.Language != "C#" {
+		t.Errorf("Language = %q, want %q", info.Language, "C#")
+	}
+}
+
+func TestAnalyze_DotNet_CsprojFile(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "MyApp.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>\n")
+
+	info := Analyze(dir)
+
+	if info.Language != "C#" {
+		t.Errorf("Language = %q, want %q", info.Language, "C#")
+	}
+}
+
+func TestAnalyze_DotNet_DefaultCommands(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "global.json", `{"sdk": {"version": "8.0.100"}}`)
+
+	info := Analyze(dir)
+
+	if info.BuildCmd != "dotnet build" {
+		t.Errorf("BuildCmd = %q, want %q", info.BuildCmd, "dotnet build")
+	}
+	if info.TestCmd != "dotnet test" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "dotnet test")
+	}
+	if info.LintCmd != "dotnet format --verify-no-changes" {
+		t.Errorf("LintCmd = %q, want %q", info.LintCmd, "dotnet format --verify-no-changes")
+	}
+}
+
+func TestAnalyze_DotNet_MakefileOverrides(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "global.json", `{"sdk": {"version": "8.0.100"}}`)
+	writeFile(t, dir, "Makefile", "build:\n\tdotnet build\n\ntest:\n\tdotnet test\n")
+
+	info := Analyze(dir)
+
+	if info.BuildCmd != "make build" {
+		t.Errorf("BuildCmd = %q, want %q", info.BuildCmd, "make build")
+	}
+	if info.TestCmd != "make test" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "make test")
+	}
+}
+
 // --- LanguageSummary ---
 
 func TestLanguageSummary(t *testing.T) {
