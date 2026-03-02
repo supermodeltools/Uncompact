@@ -696,6 +696,97 @@ requests = "^2.28"
 	}
 }
 
+func TestDetectExternalDeps_RequirementsTxt_EnvMarkers(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "requirements.txt", `requests; python_version >= "3.0"
+Flask; python_version < "3.8"
+numpy
+`)
+	deps := detectExternalDeps(dir)
+	if !containsDep(deps, "requests") {
+		t.Errorf("expected 'requests' (env marker stripped) in deps, got %v", deps)
+	}
+	if !containsDep(deps, "Flask") {
+		t.Errorf("expected 'Flask' (env marker stripped) in deps, got %v", deps)
+	}
+	if !containsDep(deps, "numpy") {
+		t.Errorf("expected 'numpy' in deps, got %v", deps)
+	}
+	for _, d := range deps {
+		if strings.Contains(d, "python_version") {
+			t.Errorf("env marker text should be stripped, but got %q in deps", d)
+		}
+	}
+}
+
+func TestDetectExternalDeps_RequirementsTxt_InlineComments(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "requirements.txt", `requests  # needed for API
+flask>=2.0  # web framework
+numpy
+`)
+	deps := detectExternalDeps(dir)
+	if !containsDep(deps, "requests") {
+		t.Errorf("expected 'requests' (inline comment stripped) in deps, got %v", deps)
+	}
+	if !containsDep(deps, "flask") {
+		t.Errorf("expected 'flask' (inline comment stripped) in deps, got %v", deps)
+	}
+	if !containsDep(deps, "numpy") {
+		t.Errorf("expected 'numpy' in deps, got %v", deps)
+	}
+	for _, d := range deps {
+		if strings.Contains(d, "#") {
+			t.Errorf("inline comment text should be stripped, but got %q in deps", d)
+		}
+	}
+}
+
+func TestDetectExternalDeps_PyprojectToml_EnvMarkers(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "pyproject.toml", `[project]
+dependencies = [
+    "requests; python_version >= '3.0'",
+    "Flask; python_version < '3.8'",
+    "numpy",
+]
+`)
+	deps := detectExternalDeps(dir)
+	if !containsDep(deps, "requests") {
+		t.Errorf("expected 'requests' (env marker stripped) in deps, got %v", deps)
+	}
+	if !containsDep(deps, "Flask") {
+		t.Errorf("expected 'Flask' (env marker stripped) in deps, got %v", deps)
+	}
+	for _, d := range deps {
+		if strings.Contains(d, "python_version") {
+			t.Errorf("env marker text should be stripped, but got %q in deps", d)
+		}
+	}
+}
+
+func TestDetectExternalDeps_PyprojectToml_InlineComments(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "pyproject.toml", `[project]
+dependencies = [
+    "requests # needed for API",
+    "flask>=2.0 # web framework",
+]
+`)
+	deps := detectExternalDeps(dir)
+	if !containsDep(deps, "requests") {
+		t.Errorf("expected 'requests' (inline comment stripped) in deps, got %v", deps)
+	}
+	if !containsDep(deps, "flask") {
+		t.Errorf("expected 'flask' (inline comment stripped) in deps, got %v", deps)
+	}
+	for _, d := range deps {
+		if strings.Contains(d, "#") {
+			t.Errorf("inline comment text should be stripped, but got %q in deps", d)
+		}
+	}
+}
+
 func TestDetectExternalDeps_CapAt15(t *testing.T) {
 	dir := t.TempDir()
 	// Write a requirements.txt with 20 distinct packages.
