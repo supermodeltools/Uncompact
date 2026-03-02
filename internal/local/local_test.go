@@ -231,6 +231,21 @@ func TestReadDescription_SkipsHeadingLines(t *testing.T) {
 	}
 }
 
+func TestReadDescription_SkipsBadgeLines(t *testing.T) {
+	dir := t.TempDir()
+	readme := "# MyProject\n" +
+		"[![CI](https://ci.example.com/badge.svg)](https://ci.example.com)\n" +
+		"[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)\n" +
+		"\n" +
+		"A Go application for managing widgets.\n"
+	writeFile(t, dir, "README.md", readme)
+
+	desc := readDescription(dir)
+	if desc != "A Go application for managing widgets." {
+		t.Errorf("readDescription = %q, want %q", desc, "A Go application for managing widgets.")
+	}
+}
+
 func TestReadDescription_IgnoresLongLines(t *testing.T) {
 	dir := t.TempDir()
 	longLine := strings.Repeat("x", 300) // > 250 chars, should be skipped
