@@ -59,6 +59,9 @@ func GetWorkingMemory(ctx context.Context, rootDir string, logFn func(string, ..
 		return nil
 	}
 	branch := strings.TrimSpace(branchOut)
+	if branch == "" {
+		return nil
+	}
 
 	base := defaultBranch(ctx, rootDir)
 
