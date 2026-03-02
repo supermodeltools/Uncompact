@@ -276,6 +276,28 @@ func analyzeNode(dir string, info *RepoInfo) {
 		}
 	}
 
+	// Fallback: detect test framework from config files when no test script is defined.
+	if info.TestCmd == "" {
+		switch {
+		case fsutil.FileExists(filepath.Join(dir, "vitest.config.js")) ||
+			fsutil.FileExists(filepath.Join(dir, "vitest.config.ts")) ||
+			fsutil.FileExists(filepath.Join(dir, "vitest.config.mjs")) ||
+			fsutil.FileExists(filepath.Join(dir, "vitest.config.cjs")):
+			info.TestCmd = execPrefix("vitest")
+		case fsutil.FileExists(filepath.Join(dir, "jest.config.js")) ||
+			fsutil.FileExists(filepath.Join(dir, "jest.config.ts")) ||
+			fsutil.FileExists(filepath.Join(dir, "jest.config.json")) ||
+			fsutil.FileExists(filepath.Join(dir, "jest.config.cjs")) ||
+			fsutil.FileExists(filepath.Join(dir, "jest.config.mjs")):
+			info.TestCmd = execPrefix("jest")
+		case fsutil.FileExists(filepath.Join(dir, ".mocharc.yml")) ||
+			fsutil.FileExists(filepath.Join(dir, ".mocharc.js")) ||
+			fsutil.FileExists(filepath.Join(dir, ".mocharc.json")) ||
+			fsutil.FileExists(filepath.Join(dir, ".mocharc.cjs")):
+			info.TestCmd = execPrefix("mocha")
+		}
+	}
+
 	// Detect formatter.
 	hasPrettier := fsutil.FileExists(filepath.Join(dir, ".prettierrc")) ||
 		fsutil.FileExists(filepath.Join(dir, ".prettierrc.json")) ||
