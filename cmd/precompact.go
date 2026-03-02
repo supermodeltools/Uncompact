@@ -310,7 +310,12 @@ var knownExtensionlessFiles = map[string]bool{
 // or if its last path segment (base name before the first dot) is a known
 // extensionless project file such as Makefile or Dockerfile.
 func hasKnownExt(s string) bool {
-	lastSeg := s[strings.LastIndex(s, "/")+1:]
+	// Extract last path segment, handling both Unix (/) and Windows (\) separators.
+	lastSep := strings.LastIndexAny(s, "/\\")
+	lastSeg := s
+	if lastSep >= 0 {
+		lastSeg = s[lastSep+1:]
+	}
 	// Check known extensionless filenames. Also handles variants like
 	// "Dockerfile.prod" by inspecting the base name before the first dot.
 	firstDot := strings.Index(lastSeg, ".")
@@ -353,12 +358,14 @@ func looksLikeFilePath(s string) bool {
 	// For bare paths (no leading slash/dot) require the last path segment to
 	// carry a recognised source-file extension so that import paths such as
 	// "github.com/foo/bar" are not mistaken for file paths.
-	if !strings.Contains(s, "/") {
+	// Accept both Unix (/) and Windows (\) path separators.
+	if !strings.Contains(s, "/") && !strings.Contains(s, "\\") {
 		return false
 	}
 	// Reject domain-prefixed paths: "github.com/...", "golang.org/...", etc.
 	// Local paths never have a dot in the first path segment.
-	firstSeg := s[:strings.Index(s, "/")]
+	firstSepIdx := strings.IndexAny(s, "/\\")
+	firstSeg := s[:firstSepIdx]
 	if strings.Contains(firstSeg, ".") {
 		return false
 	}

@@ -20,6 +20,9 @@ func TestLooksLikeFilePath_Positive(t *testing.T) {
 		{"yaml in subdirectory", "deploy/k8s/pod.yaml"},
 		{"windows absolute path backslash", `C:\Users\foo\project\main.go`},
 		{"windows absolute path forward slash", "C:/Users/foo/project/main.go"},
+		{"windows relative path with backslash", `cmd\run.go`},
+		{"windows nested relative path with backslash", `internal\cache\store.go`},
+		{"windows relative src path with backslash", `src\main.go`},
 		// Extensionless project files
 		{"Makefile in subdirectory", "cmd/Makefile"},
 		{"Dockerfile with relative prefix", "./Dockerfile"},
