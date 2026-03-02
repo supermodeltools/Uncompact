@@ -328,7 +328,9 @@ func analyzeNode(dir string, info *RepoInfo) {
 func analyzeRust(dir string, info *RepoInfo) {
 	info.Language = "Rust"
 
-	// Parse Cargo.toml for package name and edition.
+	var edition, rustVersion string
+
+	// Parse Cargo.toml for package name, edition, and rust-version (MSRV).
 	if data, err := os.ReadFile(filepath.Join(dir, "Cargo.toml")); err == nil {
 		scanner := bufio.NewScanner(strings.NewReader(string(data)))
 		inPackage := false
@@ -353,10 +355,67 @@ func analyzeRust(dir string, info *RepoInfo) {
 			if strings.HasPrefix(line, "edition") && strings.Contains(line, "=") {
 				parts := strings.SplitN(line, "=", 2)
 				if len(parts) == 2 {
-					info.Version = "edition " + strings.Trim(strings.TrimSpace(parts[1]), `"`)
+					edition = strings.Trim(strings.TrimSpace(parts[1]), `"`)
+				}
+			}
+			if strings.HasPrefix(line, "rust-version") && strings.Contains(line, "=") {
+				parts := strings.SplitN(line, "=", 2)
+				if len(parts) == 2 {
+					rustVersion = strings.Trim(strings.TrimSpace(parts[1]), `"`)
 				}
 			}
 		}
+	}
+
+	// If rust-version not found in Cargo.toml, try rust-toolchain.toml.
+	if rustVersion == "" {
+		if data, err := os.ReadFile(filepath.Join(dir, "rust-toolchain.toml")); err == nil {
+			scanner := bufio.NewScanner(strings.NewReader(string(data)))
+			inToolchain := false
+			for scanner.Scan() {
+				line := strings.TrimSpace(scanner.Text())
+				if line == "[toolchain]" {
+					inToolchain = true
+					continue
+				}
+				if strings.HasPrefix(line, "[") {
+					inToolchain = false
+				}
+				if !inToolchain {
+					continue
+				}
+				if strings.HasPrefix(line, "channel") && strings.Contains(line, "=") {
+					parts := strings.SplitN(line, "=", 2)
+					if len(parts) == 2 {
+						rustVersion = strings.Trim(strings.TrimSpace(parts[1]), `"`)
+					}
+					break
+				}
+			}
+		}
+	}
+
+	// If still no version, try legacy rust-toolchain file (first non-empty, non-comment line).
+	if rustVersion == "" {
+		if data, err := os.ReadFile(filepath.Join(dir, "rust-toolchain")); err == nil {
+			scanner := bufio.NewScanner(strings.NewReader(string(data)))
+			for scanner.Scan() {
+				line := strings.TrimSpace(scanner.Text())
+				if line != "" && !strings.HasPrefix(line, "#") {
+					rustVersion = line
+					break
+				}
+			}
+		}
+	}
+
+	// Compose version string: prefer real toolchain version, append edition when known.
+	if rustVersion != "" && edition != "" {
+		info.Version = rustVersion + " (edition " + edition + ")"
+	} else if rustVersion != "" {
+		info.Version = rustVersion
+	} else if edition != "" {
+		info.Version = "edition " + edition
 	}
 
 	if makefileHasTarget(dir, "build") {
