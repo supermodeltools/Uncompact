@@ -313,7 +313,8 @@ func analyzeNode(dir string, info *RepoInfo) {
 		fsutil.FileExists(filepath.Join(dir, "prettier.config.cjs")) ||
 		fsutil.FileExists(filepath.Join(dir, "prettier.config.mjs")) ||
 		fsutil.FileExists(filepath.Join(dir, "prettier.config.ts")) ||
-		fsutil.FileExists(filepath.Join(dir, "prettier.config.cts"))
+		fsutil.FileExists(filepath.Join(dir, "prettier.config.cts")) ||
+		fsutil.FileExists(filepath.Join(dir, "prettier.config.mts"))
 	if hasPrettier {
 		info.CodeStyle = "Uses Prettier for formatting. Run `" + execPrefix("prettier --write .") + "` before committing."
 	}
