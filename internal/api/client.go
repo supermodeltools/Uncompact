@@ -564,7 +564,12 @@ func (c *Client) GetGraphAndCircularDeps(ctx context.Context, projectName string
 		circCh <- circResult{result, err}
 	}()
 
-	gr := <-graphCh
+	var gr graphResult
+	select {
+	case gr = <-graphCh:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 	if gr.err != nil {
 		return nil, gr.err
 	}
