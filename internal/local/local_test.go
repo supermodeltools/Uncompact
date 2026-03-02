@@ -257,6 +257,67 @@ func TestReadDescription_IgnoresLongLines(t *testing.T) {
 	}
 }
 
+func TestReadDescription_SkipsHorizontalRuleDashes(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "README.md", "# My Project\n\n---\n\nA CLI tool for generating things.\n")
+
+	desc := readDescription(dir)
+	if desc != "A CLI tool for generating things." {
+		t.Errorf("readDescription = %q, want %q", desc, "A CLI tool for generating things.")
+	}
+}
+
+func TestReadDescription_SkipsHorizontalRuleAsterisks(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "README.md", "# My Project\n\n***\n\nA great library.\n")
+
+	desc := readDescription(dir)
+	if desc != "A great library." {
+		t.Errorf("readDescription = %q, want %q", desc, "A great library.")
+	}
+}
+
+func TestReadDescription_SkipsHorizontalRuleUnderscores(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "README.md", "# My Project\n\n___\n\nA useful tool.\n")
+
+	desc := readDescription(dir)
+	if desc != "A useful tool." {
+		t.Errorf("readDescription = %q, want %q", desc, "A useful tool.")
+	}
+}
+
+func TestReadDescription_SkipsTableRows(t *testing.T) {
+	dir := t.TempDir()
+	readme := "# My Project\n\n| CI | Docs |\n| -- | ---- |\n\nLightweight REST framework.\n"
+	writeFile(t, dir, "README.md", readme)
+
+	desc := readDescription(dir)
+	if desc != "Lightweight REST framework." {
+		t.Errorf("readDescription = %q, want %q", desc, "Lightweight REST framework.")
+	}
+}
+
+func TestReadDescription_SkipsCodeFenceBackticks(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "README.md", "# My Project\n\n```\ncode here\n```\n\nProject description.\n")
+
+	desc := readDescription(dir)
+	if desc != "Project description." {
+		t.Errorf("readDescription = %q, want %q", desc, "Project description.")
+	}
+}
+
+func TestReadDescription_SkipsCodeFenceTildes(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "README.md", "# My Project\n\n~~~\ncode here\n~~~\n\nProject description.\n")
+
+	desc := readDescription(dir)
+	if desc != "Project description." {
+		t.Errorf("readDescription = %q, want %q", desc, "Project description.")
+	}
+}
+
 // --- buildDomains ---
 
 func TestBuildDomains_Empty(t *testing.T) {
