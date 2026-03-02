@@ -234,6 +234,39 @@ func TestBudgetSkipped(t *testing.T) {
 	}
 }
 
+// TestBudgetContinuesAfterSkip verifies that a file too large to fit in the
+// remaining budget does not prevent subsequent smaller files from being included.
+func TestBudgetContinuesAfterSkip(t *testing.T) {
+	root := t.TempDir()
+
+	// Fill budget to within ~200 KB of the limit using 20 files of (512KB-1).
+	chunk := make([]byte, maxFileSize-1)
+	for i := 0; i < 20; i++ {
+		makeFile(t, filepath.Join(root, fmt.Sprintf("filler%02d.txt", i)), chunk)
+	}
+	// This file (~300 KB) would push us just over 10 MB; it should be skipped.
+	tooBig := make([]byte, 300*1024)
+	makeFile(t, filepath.Join(root, "zz_toobig.txt"), tooBig)
+	// This tiny file should still fit in the remaining headroom and be included.
+	makeFile(t, filepath.Join(root, "zz_tiny.txt"), []byte("tiny"))
+
+	data, report, err := RepoZip(context.Background(), root)
+	if err != nil {
+		t.Fatalf("RepoZip: %v", err)
+	}
+
+	names := zipNames(t, data)
+	if !names["zz_tiny.txt"] {
+		t.Error("zz_tiny.txt should be included after a budget-busting file is skipped, but it was absent")
+	}
+	if names["zz_toobig.txt"] {
+		t.Error("zz_toobig.txt should have been skipped due to budget, but it was included")
+	}
+	if report.BudgetSkipped == 0 {
+		t.Error("expected BudgetSkipped > 0")
+	}
+}
+
 // --- SkipReport.Truncated ---
 
 func TestTruncated(t *testing.T) {
