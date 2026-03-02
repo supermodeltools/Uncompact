@@ -296,6 +296,423 @@ func TestBuildDomains_DomainsAreSortedAlphabetically(t *testing.T) {
 	}
 }
 
+// --- detectExternalDeps ---
+
+// containsDep is a helper that reports whether name appears in deps.
+func containsDep(deps []string, name string) bool {
+	for _, d := range deps {
+		if d == name {
+			return true
+		}
+	}
+	return false
+}
+
+func TestDetectExternalDeps_NoFiles(t *testing.T) {
+	dir := t.TempDir()
+	deps := detectExternalDeps(dir)
+	if len(deps) != 0 {
+		t.Errorf("expected no deps for empty dir, got %v", deps)
+	}
+}
+
+func TestDetectExternalDeps_GoMod_SingleLineRequire(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "go.mod", `module example.com/myapp
+
+go 1.22
+
+require github.com/gin-gonic/gin v1.9.1
+require github.com/stretchr/testify v1.8.4
+`)
+	deps := detectExternalDeps(dir)
+	if !containsDep(deps, "gin") {
+		t.Errorf("expected 'gin' in deps, got %v", deps)
+	}
+	if !containsDep(deps, "testify") {
+		t.Errorf("expected 'testify' in deps, got %v", deps)
+	}
+}
+
+func TestDetectExternalDeps_GoMod_BlockRequire(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "go.mod", `module example.com/myapp
+
+go 1.22
+
+require (
+	github.com/pkg/errors v0.9.1
+	golang.org/x/sync v0.5.0
+	github.com/uber/zap v1.26.0 // indirect
+)
+`)
+	deps := detectExternalDeps(dir)
+	if !containsDep(deps, "errors") {
+		t.Errorf("expected 'errors' in deps, got %v", deps)
+	}
+	if !containsDep(deps, "sync") {
+		t.Errorf("expected 'sync' in deps, got %v", deps)
+	}
+	if !containsDep(deps, "zap") {
+		t.Errorf("expected 'zap' (indirect) in deps, got %v", deps)
+	}
+}
+
+func TestDetectExternalDeps_GoMod_SkipsOwnModule(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "go.mod", `module github.com/myorg/myapp
+
+go 1.22
+
+require (
+	github.com/myorg/myapp v0.0.0
+	github.com/some/dep v1.0.0
+)
+`)
+	deps := detectExternalDeps(dir)
+	// "myapp" is the own module's last segment — must be excluded
+	if containsDep(deps, "myapp") {
+		t.Errorf("own module 'myapp' should not appear in deps, got %v", deps)
+	}
+	if !containsDep(deps, "dep") {
+		t.Errorf("expected 'dep' in deps, got %v", deps)
+	}
+}
+
+func TestDetectExternalDeps_GoMod_LastSegmentUsed(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "go.mod", `module example.com/myapp
+
+require github.com/foo/bar/baz v1.0.0
+`)
+	deps := detectExternalDeps(dir)
+	// Only the last segment "baz" should appear, not "bar" or "foo"
+	if !containsDep(deps, "baz") {
+		t.Errorf("expected last segment 'baz' in deps, got %v", deps)
+	}
+	if containsDep(deps, "bar") || containsDep(deps, "foo") {
+		t.Errorf("only last path segment should appear, got %v", deps)
+	}
+}
+
+func TestDetectExternalDeps_PackageJSON_Dependencies(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{
+  "name": "my-app",
+  "dependencies": {
+    "react": "^18.0.0",
+    "axios": "^1.4.0"
+  }
+}`)
+	deps := detectExternalDeps(dir)
+	if !containsDep(deps, "react") {
+		t.Errorf("expected 'react' in deps, got %v", deps)
+	}
+	if !containsDep(deps, "axios") {
+		t.Errorf("expected 'axios' in deps, got %v", deps)
+	}
+}
+
+func TestDetectExternalDeps_PackageJSON_DevDependencies(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "typescript": "^5.0.0"
+  }
+}`)
+	deps := detectExternalDeps(dir)
+	if !containsDep(deps, "jest") {
+		t.Errorf("expected 'jest' in deps, got %v", deps)
+	}
+	if !containsDep(deps, "typescript") {
+		t.Errorf("expected 'typescript' in deps, got %v", deps)
+	}
+}
+
+func TestDetectExternalDeps_PackageJSON_Deduplication(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{
+  "dependencies": {
+    "lodash": "^4.0.0"
+  },
+  "devDependencies": {
+    "lodash": "^4.0.0"
+  }
+}`)
+	deps := detectExternalDeps(dir)
+	count := 0
+	for _, d := range deps {
+		if d == "lodash" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("'lodash' should appear exactly once, but found %d times in %v", count, deps)
+	}
+}
+
+func TestDetectExternalDeps_PackageJSON_InvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{ this is not valid JSON `)
+	// Must not panic; just returns empty
+	deps := detectExternalDeps(dir)
+	if len(deps) != 0 {
+		t.Errorf("invalid JSON should produce no deps, got %v", deps)
+	}
+}
+
+func TestDetectExternalDeps_RequirementsTxt_VersionSpecifiers(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "requirements.txt", `requests>=2.28.0
+flask==2.3.0
+numpy~=1.24.0
+click!=8.0.0
+scipy>1.0
+`)
+	deps := detectExternalDeps(dir)
+	for _, want := range []string{"requests", "flask", "numpy", "click", "scipy"} {
+		if !containsDep(deps, want) {
+			t.Errorf("expected %q in deps, got %v", want, deps)
+		}
+	}
+}
+
+func TestDetectExternalDeps_RequirementsTxt_Extras(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "requirements.txt", `requests[security]>=2.28.0
+uvicorn[standard]
+`)
+	deps := detectExternalDeps(dir)
+	if !containsDep(deps, "requests") {
+		t.Errorf("expected 'requests' (extras stripped) in deps, got %v", deps)
+	}
+	if !containsDep(deps, "uvicorn") {
+		t.Errorf("expected 'uvicorn' (extras stripped) in deps, got %v", deps)
+	}
+}
+
+func TestDetectExternalDeps_RequirementsTxt_SkipsCommentsAndFlags(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "requirements.txt", `# This is a comment
+-r other-requirements.txt
+-i https://pypi.org/simple
+flask==2.3.0
+`)
+	deps := detectExternalDeps(dir)
+	if containsDep(deps, "#") || containsDep(deps, "-r") || containsDep(deps, "-i") {
+		t.Errorf("comment and flag lines should be skipped, got %v", deps)
+	}
+	if !containsDep(deps, "flask") {
+		t.Errorf("expected 'flask' in deps, got %v", deps)
+	}
+}
+
+func TestDetectExternalDeps_CargoToml_Dependencies(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Cargo.toml", `[package]
+name = "my-crate"
+version = "0.1.0"
+
+[dependencies]
+serde = "1.0"
+tokio = { version = "1", features = ["full"] }
+
+[dev-dependencies]
+mockall = "0.11"
+
+[build-dependencies]
+cc = "1.0"
+`)
+	deps := detectExternalDeps(dir)
+	for _, want := range []string{"serde", "tokio", "mockall", "cc"} {
+		if !containsDep(deps, want) {
+			t.Errorf("expected %q in deps, got %v", want, deps)
+		}
+	}
+	// [package] section keys must not appear
+	if containsDep(deps, "name") || containsDep(deps, "version") {
+		t.Errorf("keys from non-dep sections should not appear, got %v", deps)
+	}
+}
+
+func TestDetectExternalDeps_CargoToml_SkipsHashLines(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Cargo.toml", `[dependencies]
+# this is a comment = "value"
+serde = "1.0"
+`)
+	deps := detectExternalDeps(dir)
+	if containsDep(deps, "# this is a comment") {
+		t.Errorf("comment lines should be skipped, got %v", deps)
+	}
+	if !containsDep(deps, "serde") {
+		t.Errorf("expected 'serde' in deps, got %v", deps)
+	}
+}
+
+func TestDetectExternalDeps_CargoToml_StopsAtNextSection(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Cargo.toml", `[dependencies]
+serde = "1.0"
+
+[profile.release]
+opt-level = 3
+`)
+	deps := detectExternalDeps(dir)
+	if containsDep(deps, "opt-level") {
+		t.Errorf("keys under [profile.release] should not be collected, got %v", deps)
+	}
+	if !containsDep(deps, "serde") {
+		t.Errorf("expected 'serde' in deps, got %v", deps)
+	}
+}
+
+func TestDetectExternalDeps_Gemfile_SingleQuotes(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Gemfile", `source 'https://rubygems.org'
+
+gem 'rails', '~> 7.0'
+gem 'puma'
+`)
+	deps := detectExternalDeps(dir)
+	if !containsDep(deps, "rails") {
+		t.Errorf("expected 'rails' in deps, got %v", deps)
+	}
+	if !containsDep(deps, "puma") {
+		t.Errorf("expected 'puma' in deps, got %v", deps)
+	}
+}
+
+func TestDetectExternalDeps_Gemfile_DoubleQuotes(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Gemfile", `source "https://rubygems.org"
+
+gem "sidekiq", "~> 7.0"
+gem "devise"
+`)
+	deps := detectExternalDeps(dir)
+	if !containsDep(deps, "sidekiq") {
+		t.Errorf("expected 'sidekiq' in deps, got %v", deps)
+	}
+	if !containsDep(deps, "devise") {
+		t.Errorf("expected 'devise' in deps, got %v", deps)
+	}
+}
+
+func TestDetectExternalDeps_Gemfile_SkipsNonGemLines(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Gemfile", `source 'https://rubygems.org'
+ruby '3.2.0'
+group :development do
+  gem 'rubocop'
+end
+`)
+	deps := detectExternalDeps(dir)
+	// 'source', 'ruby', 'group' lines must not produce deps
+	if containsDep(deps, "https://rubygems.org") || containsDep(deps, "3.2.0") {
+		t.Errorf("non-gem lines should be skipped, got %v", deps)
+	}
+	if !containsDep(deps, "rubocop") {
+		t.Errorf("expected 'rubocop' in deps, got %v", deps)
+	}
+}
+
+func TestDetectExternalDeps_PyprojectToml_PoetryDependencies(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "pyproject.toml", `[tool.poetry]
+name = "myapp"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.100.0"
+pydantic = "^2.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.4"
+`)
+	deps := detectExternalDeps(dir)
+	// python must be skipped
+	if containsDep(deps, "python") {
+		t.Errorf("'python' key should be skipped, got %v", deps)
+	}
+	for _, want := range []string{"fastapi", "pydantic", "pytest"} {
+		if !containsDep(deps, want) {
+			t.Errorf("expected %q in deps, got %v", want, deps)
+		}
+	}
+}
+
+func TestDetectExternalDeps_PyprojectToml_ProjectDependencies(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "pyproject.toml", `[build-system]
+requires = ["setuptools"]
+
+[project]
+name = "myapp"
+dependencies = [
+    "httpx>=0.24",
+    "rich",
+    "typer[all]>=0.9",
+]
+`)
+	deps := detectExternalDeps(dir)
+	for _, want := range []string{"httpx", "rich", "typer"} {
+		if !containsDep(deps, want) {
+			t.Errorf("expected %q in deps, got %v", want, deps)
+		}
+	}
+}
+
+func TestDetectExternalDeps_PyprojectToml_SkipsPythonKey(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "pyproject.toml", `[tool.poetry.dependencies]
+python = ">=3.9"
+requests = "^2.28"
+`)
+	deps := detectExternalDeps(dir)
+	if containsDep(deps, "python") {
+		t.Errorf("'python' key should always be skipped, got %v", deps)
+	}
+	if !containsDep(deps, "requests") {
+		t.Errorf("expected 'requests' in deps, got %v", deps)
+	}
+}
+
+func TestDetectExternalDeps_CapAt15(t *testing.T) {
+	dir := t.TempDir()
+	// Write a requirements.txt with 20 distinct packages.
+	lines := ""
+	for i := 0; i < 20; i++ {
+		lines += fmt.Sprintf("package%02d\n", i)
+	}
+	writeFile(t, dir, "requirements.txt", lines)
+
+	deps := detectExternalDeps(dir)
+	if len(deps) > 15 {
+		t.Errorf("deps len = %d, want ≤15 (maxExternalDeps cap)", len(deps))
+	}
+}
+
+func TestDetectExternalDeps_CrossManifestDeduplication(t *testing.T) {
+	dir := t.TempDir()
+	// "requests" appears in both requirements.txt and pyproject.toml
+	writeFile(t, dir, "requirements.txt", "requests>=2.28\n")
+	writeFile(t, dir, "pyproject.toml", `[tool.poetry.dependencies]
+requests = "^2.28"
+`)
+	deps := detectExternalDeps(dir)
+	count := 0
+	for _, d := range deps {
+		if d == "requests" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("'requests' should appear exactly once across manifests, but found %d times in %v", count, deps)
+	}
+}
+
 // --- git-tracked dotfiles ---
 
 // TestBuildProjectGraph_IncludesGitTrackedDotfiles verifies that dotfiles
