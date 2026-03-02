@@ -36,3 +36,28 @@ func BuildGitFileSet(ctx context.Context, root string) map[string]bool {
 	}
 	return files
 }
+
+// BuildTrackedFileSet runs git ls-files --cached to get only the set of files
+// that are explicitly staged/tracked by git. Unlike BuildGitFileSet, it does
+// NOT include untracked files (even those not excluded by .gitignore), making
+// it safe to use as the dotfile allowlist. An untracked .env file will not
+// appear in this set even if the developer forgot to add it to .gitignore.
+// Paths are slash-separated and relative to root.
+// Returns nil if git is not available or root is not a git repository.
+func BuildTrackedFileSet(ctx context.Context, root string) map[string]bool {
+	cmd := exec.CommandContext(ctx, "git", "ls-files", "--cached")
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+
+	files := make(map[string]bool)
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			files[filepath.ToSlash(line)] = true
+		}
+	}
+	return files
+}

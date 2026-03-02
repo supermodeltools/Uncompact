@@ -134,6 +134,11 @@ func RepoZip(ctx context.Context, root string) ([]byte, SkipReport, error) {
 	// hardcoded skip lists below.
 	gitFiles := fsutil.BuildGitFileSet(ctx, root)
 
+	// trackedFiles contains only explicitly git-tracked (--cached) files.
+	// Used for the dotfile guard so that untracked dotfiles such as a .env file
+	// not yet added to .gitignore are never included in the archive.
+	trackedFiles := fsutil.BuildTrackedFileSet(ctx, root)
+
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		select {
 		case <-ctx.Done():
@@ -161,11 +166,13 @@ func RepoZip(ctx context.Context, root string) ([]byte, SkipReport, error) {
 		}
 
 		// Skip hidden files (e.g. .env, .secrets) unless they are explicitly
-		// git-tracked. When git is unavailable (gitFiles is nil) we fall back to
-		// skipping all dot-prefixed files for safety. Tracked dotfiles such as
+		// git-tracked. When git is unavailable (trackedFiles is nil) we fall back
+		// to skipping all dot-prefixed files for safety. Tracked dotfiles such as
 		// .eslintrc.json, .prettierrc, and .editorconfig are intentionally
 		// included because they provide valuable project context.
-		if strings.HasPrefix(base, ".") && (gitFiles == nil || !gitFiles[rel]) {
+		// Note: trackedFiles uses --cached only (not --others) so untracked
+		// dotfiles that happen to be non-gitignored are never let through.
+		if strings.HasPrefix(base, ".") && (trackedFiles == nil || !trackedFiles[rel]) {
 			return nil
 		}
 
