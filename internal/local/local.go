@@ -214,6 +214,10 @@ func detectExternalDeps(rootDir string) []string {
 				continue
 			}
 			name := line
+			// Strip PEP 508 direct URL references (e.g. "pkg @ https://...").
+			if i := strings.Index(name, " @ "); i >= 0 {
+				name = name[:i]
+			}
 			for _, sep := range []string{"[", "==", ">=", "<=", "!=", "~=", ">", "<"} {
 				if i := strings.Index(name, sep); i >= 0 {
 					name = name[:i]

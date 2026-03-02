@@ -492,6 +492,23 @@ uvicorn[standard]
 	}
 }
 
+func TestDetectExternalDeps_RequirementsTxt_PEP508DirectURL(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "requirements.txt", `my-package @ https://files.pythonhosted.org/packages/my-package-1.0.tar.gz
+flask==2.3.0
+`)
+	deps := detectExternalDeps(dir)
+	if !containsDep(deps, "my-package") {
+		t.Errorf("expected 'my-package' (URL stripped) in deps, got %v", deps)
+	}
+	if containsDep(deps, "https://files.pythonhosted.org/packages/my-package-1.0.tar.gz") {
+		t.Errorf("expected URL to be stripped from deps, got %v", deps)
+	}
+	if !containsDep(deps, "flask") {
+		t.Errorf("expected 'flask' in deps, got %v", deps)
+	}
+}
+
 func TestDetectExternalDeps_RequirementsTxt_SkipsCommentsAndFlags(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "requirements.txt", `# This is a comment
