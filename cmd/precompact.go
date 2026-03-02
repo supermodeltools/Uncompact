@@ -294,14 +294,38 @@ var knownSourceExts = map[string]bool{
 	".proto": true, ".sql": true, ".tf": true, ".lock": true,
 }
 
-// hasKnownExt returns true if s ends with a recognised source-file extension.
+// knownExtensionlessFiles is the set of common project files that carry no
+// extension (or whose base name before the first dot is enough to identify
+// them, e.g. "Dockerfile.prod").
+var knownExtensionlessFiles = map[string]bool{
+	"Makefile": true, "GNUmakefile": true, "makefile": true,
+	"Dockerfile":  true,
+	"Procfile":    true,
+	"Jenkinsfile": true,
+	"Brewfile":    true,
+	"Vagrantfile": true,
+}
+
+// hasKnownExt returns true if s ends with a recognised source-file extension
+// or if its last path segment (base name before the first dot) is a known
+// extensionless project file such as Makefile or Dockerfile.
 func hasKnownExt(s string) bool {
 	lastSeg := s[strings.LastIndex(s, "/")+1:]
-	dotIdx := strings.LastIndex(lastSeg, ".")
-	if dotIdx < 0 {
+	// Check known extensionless filenames. Also handles variants like
+	// "Dockerfile.prod" by inspecting the base name before the first dot.
+	firstDot := strings.Index(lastSeg, ".")
+	baseName := lastSeg
+	if firstDot >= 0 {
+		baseName = lastSeg[:firstDot]
+	}
+	if knownExtensionlessFiles[baseName] {
+		return true
+	}
+	extDot := strings.LastIndex(lastSeg, ".")
+	if extDot < 0 {
 		return false
 	}
-	return knownSourceExts[lastSeg[dotIdx:]]
+	return knownSourceExts[lastSeg[extDot:]]
 }
 
 // looksLikeFilePath is a heuristic for detecting local file path tokens.

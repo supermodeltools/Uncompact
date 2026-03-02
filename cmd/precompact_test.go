@@ -20,6 +20,13 @@ func TestLooksLikeFilePath_Positive(t *testing.T) {
 		{"yaml in subdirectory", "deploy/k8s/pod.yaml"},
 		{"windows absolute path backslash", `C:\Users\foo\project\main.go`},
 		{"windows absolute path forward slash", "C:/Users/foo/project/main.go"},
+		// Extensionless project files
+		{"Makefile in subdirectory", "cmd/Makefile"},
+		{"Dockerfile with relative prefix", "./Dockerfile"},
+		{"Procfile in deploy dir", "deploy/Procfile"},
+		{"Jenkinsfile in subdirectory", "ci/Jenkinsfile"},
+		{"Dockerfile variant", "docker/Dockerfile.prod"},
+		{"absolute path to Makefile", "/home/user/project/Makefile"},
 	}
 
 	for _, tc := range cases {
