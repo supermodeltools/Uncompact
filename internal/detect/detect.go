@@ -169,7 +169,8 @@ func analyzeNode(dir string, info *RepoInfo) {
 	// Detect package manager from lockfiles.
 	var pkgMgr string
 	switch {
-	case fsutil.FileExists(filepath.Join(dir, "bun.lockb")):
+	case fsutil.FileExists(filepath.Join(dir, "bun.lockb")),
+		fsutil.FileExists(filepath.Join(dir, "bun.lock")):
 		pkgMgr = "bun"
 	case fsutil.FileExists(filepath.Join(dir, "pnpm-lock.yaml")):
 		pkgMgr = "pnpm"
