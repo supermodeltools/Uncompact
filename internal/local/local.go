@@ -6,6 +6,7 @@ package local
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -116,10 +117,11 @@ func BuildProjectGraph(ctx context.Context, rootDir, projectName string) (*api.P
 	domains := buildDomains(dirFiles)
 
 	graph := &api.ProjectGraph{
-		Name:        projectName,
-		Language:    lang,
-		Description: desc,
-		Domains:     domains,
+		Name:         projectName,
+		Language:     lang,
+		Description:  desc,
+		Domains:      domains,
+		ExternalDeps: detectExternalDeps(rootDir),
 		Stats: api.Stats{
 			TotalFiles: totalFiles,
 			Languages:  languages,
@@ -128,6 +130,188 @@ func BuildProjectGraph(ctx context.Context, rootDir, projectName string) (*api.P
 	}
 	graph.CriticalFiles = computeTopFiles(graph.Domains, 10)
 	return graph, nil
+}
+
+// detectExternalDeps scans rootDir for common dependency manifests and returns
+// up to maxExternalDeps top-level dependency names. Supported manifests:
+// go.mod, package.json, requirements.txt, Cargo.toml, Gemfile, pyproject.toml.
+func detectExternalDeps(rootDir string) []string {
+	const maxExternalDeps = 15
+	seen := make(map[string]bool)
+	var deps []string
+
+	add := func(name string) {
+		name = strings.TrimSpace(name)
+		if name == "" || seen[name] {
+			return
+		}
+		seen[name] = true
+		deps = append(deps, name)
+	}
+
+	// go.mod: extract module paths from require directives, take last path segment.
+	if data, err := os.ReadFile(filepath.Join(rootDir, "go.mod")); err == nil {
+		inRequire := false
+		ownModule := ""
+		for _, line := range strings.Split(string(data), "\n") {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "module ") {
+				if fields := strings.Fields(trimmed); len(fields) >= 2 {
+					ownModule = fields[1]
+				}
+				continue
+			}
+			if trimmed == "require (" {
+				inRequire = true
+				continue
+			}
+			if inRequire && trimmed == ")" {
+				inRequire = false
+				continue
+			}
+			var mod string
+			if strings.HasPrefix(trimmed, "require ") {
+				if fields := strings.Fields(trimmed); len(fields) >= 2 {
+					mod = fields[1]
+				}
+			} else if inRequire {
+				if i := strings.Index(trimmed, "//"); i >= 0 {
+					trimmed = strings.TrimSpace(trimmed[:i])
+				}
+				if fields := strings.Fields(trimmed); len(fields) >= 1 {
+					mod = fields[0]
+				}
+			}
+			if mod == "" || mod == ownModule {
+				continue
+			}
+			segments := strings.Split(mod, "/")
+			add(segments[len(segments)-1])
+		}
+	}
+
+	// package.json: extract keys from dependencies and devDependencies.
+	if data, err := os.ReadFile(filepath.Join(rootDir, "package.json")); err == nil {
+		var pkg struct {
+			Dependencies    map[string]json.RawMessage `json:"dependencies"`
+			DevDependencies map[string]json.RawMessage `json:"devDependencies"`
+		}
+		if json.Unmarshal(data, &pkg) == nil {
+			for name := range pkg.Dependencies {
+				add(name)
+			}
+			for name := range pkg.DevDependencies {
+				add(name)
+			}
+		}
+	}
+
+	// requirements.txt: extract package names before version specifiers.
+	if data, err := os.ReadFile(filepath.Join(rootDir, "requirements.txt")); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "-") {
+				continue
+			}
+			name := line
+			for _, sep := range []string{"[", "==", ">=", "<=", "!=", "~=", ">", "<"} {
+				if i := strings.Index(name, sep); i >= 0 {
+					name = name[:i]
+				}
+			}
+			add(name)
+		}
+	}
+
+	// Cargo.toml: extract keys under [dependencies], [dev-dependencies], [build-dependencies].
+	if data, err := os.ReadFile(filepath.Join(rootDir, "Cargo.toml")); err == nil {
+		inDeps := false
+		for _, line := range strings.Split(string(data), "\n") {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "[") {
+				inDeps = trimmed == "[dependencies]" || trimmed == "[dev-dependencies]" || trimmed == "[build-dependencies]"
+				continue
+			}
+			if inDeps && strings.Contains(trimmed, "=") && !strings.HasPrefix(trimmed, "#") {
+				parts := strings.SplitN(trimmed, "=", 2)
+				add(strings.TrimSpace(parts[0]))
+			}
+		}
+	}
+
+	// Gemfile: extract gem name from gem 'name' or gem "name" lines.
+	if data, err := os.ReadFile(filepath.Join(rootDir, "Gemfile")); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			trimmed := strings.TrimSpace(line)
+			if !strings.HasPrefix(trimmed, "gem ") && !strings.HasPrefix(trimmed, "gem\t") {
+				continue
+			}
+			rest := strings.TrimSpace(trimmed[3:])
+			for _, q := range []string{"'", `"`} {
+				if strings.HasPrefix(rest, q) {
+					if end := strings.Index(rest[1:], q); end >= 0 {
+						add(rest[1 : end+1])
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// pyproject.toml: handles [tool.poetry.dependencies] (key=value) and
+	// [project] dependencies list.
+	if data, err := os.ReadFile(filepath.Join(rootDir, "pyproject.toml")); err == nil {
+		inPoetryDeps := false
+		inProjectSection := false
+		inProjectDepsArray := false
+		for _, line := range strings.Split(string(data), "\n") {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "[") {
+				inPoetryDeps = trimmed == "[tool.poetry.dependencies]" || trimmed == "[tool.poetry.dev-dependencies]"
+				inProjectSection = trimmed == "[project]"
+				if !inProjectSection {
+					inProjectDepsArray = false
+				}
+				continue
+			}
+			if inProjectSection && !inProjectDepsArray {
+				if strings.HasPrefix(trimmed, "dependencies") && strings.Contains(trimmed, "=") {
+					inProjectDepsArray = true
+					continue
+				}
+			}
+			if inProjectDepsArray {
+				if strings.HasPrefix(trimmed, "]") {
+					inProjectDepsArray = false
+					continue
+				}
+				dep := strings.Trim(trimmed, `"', `)
+				for _, sep := range []string{"[", ">=", "<=", "==", "!=", "~=", ">", "<"} {
+					if i := strings.Index(dep, sep); i >= 0 {
+						dep = dep[:i]
+					}
+				}
+				dep = strings.TrimSpace(dep)
+				if dep != "" && !strings.HasPrefix(dep, "#") {
+					add(dep)
+				}
+				continue
+			}
+			if inPoetryDeps && strings.Contains(trimmed, "=") && !strings.HasPrefix(trimmed, "#") {
+				parts := strings.SplitN(trimmed, "=", 2)
+				name := strings.TrimSpace(parts[0])
+				if name != "python" {
+					add(name)
+				}
+			}
+		}
+	}
+
+	sort.Strings(deps)
+	if len(deps) > maxExternalDeps {
+		deps = deps[:maxExternalDeps]
+	}
+	return deps
 }
 
 // ReadClaudeMD reads the contents of CLAUDE.md from the project root.
