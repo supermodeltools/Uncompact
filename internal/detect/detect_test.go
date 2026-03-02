@@ -1557,6 +1557,18 @@ func TestMakefileHasTarget(t *testing.T) {
 	}
 }
 
+func TestMakefileHasTarget_VariableAssignmentNotTarget(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Makefile", "test = pytest\n\ncheck:\n\tpytest tests/\n")
+
+	if makefileHasTarget(dir, "test") {
+		t.Error("expected makefileHasTarget to return false for variable assignment 'test = pytest'")
+	}
+	if !makefileHasTarget(dir, "check") {
+		t.Error("expected makefileHasTarget to return true for 'check' target")
+	}
+}
+
 func TestMakefileHasTarget_NoMakefile(t *testing.T) {
 	dir := t.TempDir()
 
