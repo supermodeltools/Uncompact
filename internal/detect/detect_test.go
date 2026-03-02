@@ -484,6 +484,155 @@ func TestAnalyze_Python_PythonVersionFile(t *testing.T) {
 	}
 }
 
+// --- Analyze: Swift ---
+
+func TestAnalyze_Swift_Minimal(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Package.swift", "// swift-tools-version:5.9\nimport PackageDescription\n")
+
+	info := Analyze(dir)
+
+	if info.Language != "Swift" {
+		t.Errorf("Language = %q, want %q", info.Language, "Swift")
+	}
+	if info.Version != "5.9" {
+		t.Errorf("Version = %q, want %q", info.Version, "5.9")
+	}
+	if info.BuildCmd != "swift build" {
+		t.Errorf("BuildCmd = %q, want %q", info.BuildCmd, "swift build")
+	}
+	if info.TestCmd != "swift test" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "swift test")
+	}
+	if info.LintCmd != "" {
+		t.Errorf("LintCmd = %q, want empty (no swiftlint config)", info.LintCmd)
+	}
+}
+
+func TestAnalyze_Swift_VersionWithSpace(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Package.swift", "// swift-tools-version: 5.10\nimport PackageDescription\n")
+
+	info := Analyze(dir)
+
+	if info.Version != "5.10" {
+		t.Errorf("Version = %q, want %q", info.Version, "5.10")
+	}
+}
+
+func TestAnalyze_Swift_WithSwiftLintYml(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Package.swift", "// swift-tools-version:5.9\n")
+	writeFile(t, dir, ".swiftlint.yml", "disabled_rules:\n  - line_length\n")
+
+	info := Analyze(dir)
+
+	if info.LintCmd != "swiftlint" {
+		t.Errorf("LintCmd = %q, want %q", info.LintCmd, "swiftlint")
+	}
+}
+
+func TestAnalyze_Swift_WithSwiftLintYaml(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Package.swift", "// swift-tools-version:5.9\n")
+	writeFile(t, dir, ".swiftlint.yaml", "disabled_rules:\n  - line_length\n")
+
+	info := Analyze(dir)
+
+	if info.LintCmd != "swiftlint" {
+		t.Errorf("LintCmd = %q, want %q", info.LintCmd, "swiftlint")
+	}
+}
+
+// --- Analyze: Elixir ---
+
+func TestAnalyze_Elixir_Minimal(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "mix.exs", `defmodule MyApp.MixProject do
+  use Mix.Project
+
+  def project do
+    [
+      app: :my_app,
+      version: "0.1.0",
+      elixir: "~> 1.15",
+      deps: deps()
+    ]
+  end
+end
+`)
+
+	info := Analyze(dir)
+
+	if info.Language != "Elixir" {
+		t.Errorf("Language = %q, want %q", info.Language, "Elixir")
+	}
+	if info.Version != "1.15" {
+		t.Errorf("Version = %q, want %q", info.Version, "1.15")
+	}
+	if info.BuildCmd != "mix compile" {
+		t.Errorf("BuildCmd = %q, want %q", info.BuildCmd, "mix compile")
+	}
+	if info.TestCmd != "mix test" {
+		t.Errorf("TestCmd = %q, want %q", info.TestCmd, "mix test")
+	}
+	if info.LintCmd != "" {
+		t.Errorf("LintCmd = %q, want empty (no credo)", info.LintCmd)
+	}
+}
+
+func TestAnalyze_Elixir_WithCredo(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "mix.exs", `defmodule MyApp.MixProject do
+  use Mix.Project
+
+  def project do
+    [
+      app: :my_app,
+      elixir: "~> 1.14",
+    ]
+  end
+
+  defp deps do
+    [
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+    ]
+  end
+end
+`)
+
+	info := Analyze(dir)
+
+	if info.LintCmd != "mix credo" {
+		t.Errorf("LintCmd = %q, want %q", info.LintCmd, "mix credo")
+	}
+	if info.Version != "1.14" {
+		t.Errorf("Version = %q, want %q", info.Version, "1.14")
+	}
+}
+
+func TestAnalyze_Elixir_NoCredo(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "mix.exs", `defmodule MyApp.MixProject do
+  use Mix.Project
+
+  def project do
+    [app: :my_app, elixir: "~> 1.16"]
+  end
+
+  defp deps do
+    [{:jason, "~> 1.4"}]
+  end
+end
+`)
+
+	info := Analyze(dir)
+
+	if info.LintCmd != "" {
+		t.Errorf("LintCmd = %q, want empty (no credo in deps)", info.LintCmd)
+	}
+}
+
 // --- LanguageSummary ---
 
 func TestLanguageSummary(t *testing.T) {

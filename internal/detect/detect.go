@@ -73,6 +73,10 @@ func Analyze(dir string) *RepoInfo {
 		fsutil.FileExists(filepath.Join(dir, "Directory.Build.props")),
 		hasDotNetFile(dir):
 		analyzeDotNet(dir, info)
+	case fsutil.FileExists(filepath.Join(dir, "Package.swift")):
+		analyzeSwift(dir, info)
+	case fsutil.FileExists(filepath.Join(dir, "mix.exs")):
+		analyzeElixir(dir, info)
 	default:
 		info.Language = "Unknown"
 	}
@@ -625,6 +629,67 @@ func analyzeDotNet(dir string, info *RepoInfo) {
 	}
 
 	info.CodeStyle = "Follow .NET coding conventions. Run `dotnet format` for formatting."
+}
+
+func analyzeSwift(dir string, info *RepoInfo) {
+	info.Language = "Swift"
+
+	// Parse Package.swift for swift-tools-version comment.
+	if data, err := os.ReadFile(filepath.Join(dir, "Package.swift")); err == nil {
+		scanner := bufio.NewScanner(strings.NewReader(string(data)))
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			// e.g. // swift-tools-version:5.9 or // swift-tools-version: 5.9
+			if strings.HasPrefix(line, "// swift-tools-version:") {
+				ver := strings.TrimSpace(strings.TrimPrefix(line, "// swift-tools-version:"))
+				if ver != "" {
+					info.Version = ver
+				}
+				break
+			}
+		}
+	}
+
+	info.BuildCmd = "swift build"
+	info.TestCmd = "swift test"
+
+	// Lint: swiftlint if config file is present.
+	if fsutil.FileExists(filepath.Join(dir, ".swiftlint.yml")) ||
+		fsutil.FileExists(filepath.Join(dir, ".swiftlint.yaml")) {
+		info.LintCmd = "swiftlint"
+	}
+}
+
+func analyzeElixir(dir string, info *RepoInfo) {
+	info.Language = "Elixir"
+
+	// Parse mix.exs for elixir version and credo dependency.
+	if data, err := os.ReadFile(filepath.Join(dir, "mix.exs")); err == nil {
+		content := string(data)
+		scanner := bufio.NewScanner(strings.NewReader(content))
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			// Look for: elixir: "~> 1.15"
+			if strings.Contains(line, "elixir:") && strings.Contains(line, "\"") {
+				parts := strings.SplitN(line, "\"", 3)
+				if len(parts) >= 3 {
+					ver := strings.TrimLeft(parts[1], "~>^<!=")
+					ver = strings.TrimSpace(ver)
+					if ver != "" {
+						info.Version = ver
+					}
+				}
+				break
+			}
+		}
+		// Lint: mix credo if credo appears in deps.
+		if strings.Contains(content, "credo") {
+			info.LintCmd = "mix credo"
+		}
+	}
+
+	info.BuildCmd = "mix compile"
+	info.TestCmd = "mix test"
 }
 
 // GenerateCLAUDEMD produces the content for a CLAUDE.md file based on detected info.
