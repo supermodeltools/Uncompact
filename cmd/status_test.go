@@ -90,3 +90,34 @@ func TestHumanDuration(t *testing.T) {
 		})
 	}
 }
+
+func TestParseSinceDuration(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    time.Duration
+		wantErr bool
+	}{
+		{"7 days", "7d", 7 * 24 * time.Hour, false},
+		{"1.5 days", "1.5d", 36 * time.Hour, false},
+		{"zero days", "0d", 0, false},
+		{"negative days", "-7d", 0, true},
+		{"invalid day suffix", "xd", 0, true},
+		{"24 hours", "24h", 24 * time.Hour, false},
+		{"negative hours", "-1h", 0, true},
+		{"zero passthrough", "0", 0, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseSinceDuration(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseSinceDuration(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && got != tt.want {
+				t.Errorf("parseSinceDuration(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
