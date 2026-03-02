@@ -655,10 +655,14 @@ func analyzeSwift(dir string, info *RepoInfo) {
 				continue
 			}
 			// Extract package name from e.g. name: "MyLib" (skip comments).
+			// Break after the first match: Package(name:) is always first in a
+			// well-formed Package.swift, so later target/product name: lines
+			// must not overwrite it.
 			if !strings.HasPrefix(line, "//") && strings.Contains(line, "name:") {
 				parts := strings.SplitN(line, "\"", 3)
 				if len(parts) >= 3 && parts[1] != "" {
 					info.ProjectName = parts[1]
+					break
 				}
 			}
 		}
