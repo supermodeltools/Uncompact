@@ -51,8 +51,12 @@ function main() {
     process.exit(1);
   });
 
-  child.on("close", (code) => {
-    process.exit(code ?? 0);
+  child.on("close", (code, signal) => {
+    if (code === null && signal) {
+      process.kill(process.pid, signal);
+    } else {
+      process.exit(code ?? 0);
+    }
   });
 }
 

@@ -3,7 +3,7 @@
 const https = require("https");
 const fs = require("fs");
 const path = require("path");
-const { execSync } = require("child_process");
+const { execSync, execFileSync } = require("child_process");
 const os = require("os");
 
 const REPO_OWNER = "supermodeltools";
@@ -56,6 +56,10 @@ function httpsGet(url) {
       response.on("end", () => resolve(Buffer.concat(chunks)));
       response.on("error", reject);
     });
+    request.setTimeout(20000, () => {
+      request.destroy();
+      reject(new Error(`Request timed out: ${url}`));
+    });
     request.on("error", reject);
   });
 }
@@ -68,11 +72,7 @@ async function getRelease(version) {
   if (version && version !== "0.0.0") {
     const tag = version.startsWith("v") ? version : `v${version}`;
     const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/tags/${tag}`;
-    try {
-      return await httpsGetJson(url);
-    } catch (err) {
-      console.log(`[uncompact] Release ${tag} not found, falling back to latest`);
-    }
+    return await httpsGetJson(url);
   }
   const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`;
   return httpsGetJson(url);
@@ -81,7 +81,7 @@ async function getRelease(version) {
 function extractTarGz(buffer, destDir, binaryName) {
   const tarPath = path.join(destDir, "archive.tar.gz");
   fs.writeFileSync(tarPath, buffer);
-  execSync(`tar -xzf "${tarPath}" -C "${destDir}"`, { stdio: "pipe" });
+  execFileSync("tar", ["-xzf", tarPath, "-C", destDir], { stdio: "pipe" });
   fs.unlinkSync(tarPath);
   
   const extracted = path.join(destDir, binaryName);
@@ -96,9 +96,9 @@ function extractZip(buffer, destDir, binaryName) {
   fs.writeFileSync(zipPath, buffer);
   
   if (process.platform === "win32") {
-    execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force"`, { stdio: "pipe" });
+    execFileSync("powershell", ["-Command", `Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force`], { stdio: "pipe" });
   } else {
-    execSync(`unzip -o "${zipPath}" -d "${destDir}"`, { stdio: "pipe" });
+    execFileSync("unzip", ["-o", zipPath, "-d", destDir], { stdio: "pipe" });
   }
   fs.unlinkSync(zipPath);
   
