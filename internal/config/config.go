@@ -30,6 +30,9 @@ type Config struct {
 	BaseURL   string `json:"base_url,omitempty"`
 	MaxTokens int    `json:"max_tokens,omitempty"`
 	Mode      string `json:"mode,omitempty"` // "local" or "api"; empty = auto-detect
+
+	// Source indicates where the API key was loaded from.
+	Source string `json:"-"`
 }
 
 // ConfigDir returns the XDG-compatible config directory.
@@ -135,6 +138,9 @@ func Load(flagAPIKey string) (*Config, error) {
 		if err := json.Unmarshal(data, cfg); err != nil {
 			return nil, fmt.Errorf("malformed config file %s: %w", cfgFile, err)
 		}
+		if cfg.APIKey != "" {
+			cfg.Source = "config file"
+		}
 		if cfg.Mode != "" {
 			cfg.Mode = strings.ToLower(strings.TrimSpace(cfg.Mode))
 			if err := ValidateMode(cfg.Mode); err != nil {
@@ -148,6 +154,7 @@ func Load(flagAPIKey string) (*Config, error) {
 	// Override with env var
 	if envKey := os.Getenv(EnvAPIKey); envKey != "" {
 		cfg.APIKey = envKey
+		cfg.Source = "environment variable (" + EnvAPIKey + ")"
 	}
 
 	// Override mode with env var
@@ -162,6 +169,7 @@ func Load(flagAPIKey string) (*Config, error) {
 	// Override with flag
 	if flagAPIKey != "" {
 		cfg.APIKey = flagAPIKey
+		cfg.Source = "CLI flag"
 	}
 
 	// Apply defaults for any fields not set by file/env/flag.

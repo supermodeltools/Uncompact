@@ -97,6 +97,14 @@ func authLoginHandler(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Authenticated as: %s\n", identity)
 	}
 
+	// Warn if environment variable is masking
+	if os.Getenv(config.EnvAPIKey) != "" {
+		fmt.Println()
+		fmt.Printf("⚠️  WARNING: The environment variable %s is currently set.\n", config.EnvAPIKey)
+		fmt.Println("   It will continue to override the API key you just saved to the config file.")
+		fmt.Println("   To use the new key, you must unset the environment variable or update it.")
+	}
+
 	// Save
 	cfg.APIKey = key
 	if err := config.Save(cfg); err != nil {
@@ -136,6 +144,7 @@ func authStatusHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Status: authenticated\n")
+	fmt.Printf("Source: %s\n", cfg.Source)
 	keyLen := len(cfg.APIKey)
 	if keyLen <= 8 {
 		fmt.Printf("API key: [%d chars]\n", keyLen)
