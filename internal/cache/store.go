@@ -14,13 +14,20 @@ import (
 const (
 	defaultTTL     = 15 * time.Minute
 	defaultMaxAge  = 30 * 24 * time.Hour // 30 days
-	schemaVersion  = 1
+	schemaVersion  = 2
 )
 
 // Store is the SQLite-backed cache for Uncompact.
 type Store struct {
 	db  *sql.DB
 	ttl time.Duration
+}
+
+// AuthStatus is a cached authentication result.
+type AuthStatus struct {
+	APIKeyHash      string
+	Identity        string
+	LastValidatedAt time.Time
 }
 
 // InjectionLog is a record of a context bomb injection.
@@ -82,6 +89,12 @@ func (s *Store) migrate() error {
 			source TEXT NOT NULL DEFAULT 'api',
 			stale_at TIMESTAMP,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
+
+		CREATE TABLE IF NOT EXISTS auth_cache (
+			api_key_hash TEXT PRIMARY KEY,
+			identity TEXT NOT NULL,
+			last_validated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_graph_cache_hash ON graph_cache(project_hash);
@@ -328,4 +341,35 @@ func (s *Store) LastInjection(projectHash string) (*InjectionLog, error) {
 		l.StaleAt = &staleAt.Time
 	}
 	return &l, nil
+}
+
+// GetAuthStatus retrieves the cached auth status for a given key hash.
+func (s *Store) GetAuthStatus(apiKeyHash string) (*AuthStatus, error) {
+	row := s.db.QueryRow(`
+		SELECT api_key_hash, identity, last_validated_at
+		FROM auth_cache
+		WHERE api_key_hash = ?`,
+		apiKeyHash,
+	)
+
+	var auth AuthStatus
+	if err := row.Scan(&auth.APIKeyHash, &auth.Identity, &auth.LastValidatedAt); err == sql.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	return &auth, nil
+}
+
+// SetAuthStatus caches the auth status for a given key hash.
+func (s *Store) SetAuthStatus(apiKeyHash, identity string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO auth_cache (api_key_hash, identity, last_validated_at)
+		VALUES (?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(api_key_hash) DO UPDATE SET
+			identity = excluded.identity,
+			last_validated_at = excluded.last_validated_at`,
+		apiKeyHash, identity,
+	)
+	return err
 }

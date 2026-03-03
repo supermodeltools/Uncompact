@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/google/uuid v1.6.0
+	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/spf13/cobra v1.8.1
 	golang.org/x/sys v0.41.0
 	golang.org/x/term v0.40.0

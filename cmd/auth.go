@@ -7,8 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 	"github.com/supermodeltools/uncompact/internal/api"
+	"github.com/supermodeltools/uncompact/internal/cache"
 	"github.com/supermodeltools/uncompact/internal/config"
 	"golang.org/x/term"
 )
@@ -49,10 +51,14 @@ func authLoginHandler(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("Uncompact uses the Supermodel Public API.")
 	fmt.Println()
-	fmt.Println("1. Visit the dashboard to get your API key:")
+	fmt.Println("1. Opening your browser to the Supermodel dashboard...")
 	fmt.Println("   " + config.DashboardURL)
 	fmt.Println()
-	fmt.Print("2. Paste your API key here: ")
+
+	_ = browser.OpenURL(config.DashboardURL)
+
+	fmt.Println("2. Sign in, create an API key, and paste it below.")
+	fmt.Print("   API Key: ")
 
 	var key string
 	if term.IsTerminal(int(os.Stdin.Fd())) {
@@ -97,6 +103,15 @@ func authLoginHandler(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("saving config: %w", err)
 	}
 
+	// Cache the auth status
+	dbPath, err := config.DBPath()
+	if err == nil {
+		if store, err := cache.Open(dbPath); err == nil {
+			defer store.Close()
+			_ = store.SetAuthStatus(cfg.APIKeyHash(), identity)
+		}
+	}
+
 	if cfgFile, err := config.ConfigFile(); err == nil {
 		fmt.Printf("\nAPI key saved to: %s\n", cfgFile)
 	} else {
@@ -131,7 +146,27 @@ func authStatusHandler(cmd *cobra.Command, args []string) error {
 		)
 	}
 
-	// Try to validate
+	// Try to get from cache first
+	dbPath, _ := config.DBPath()
+	var store *cache.Store
+	if dbPath != "" {
+		store, _ = cache.Open(dbPath)
+	}
+	if store != nil {
+		defer store.Close()
+		if auth, _ := store.GetAuthStatus(cfg.APIKeyHash()); auth != nil {
+			// Only use cache if it's less than 24h old
+			if time.Since(auth.LastValidatedAt) < 24*time.Hour {
+				fmt.Printf("API check: ✓ (cached %s ago)\n", humanDuration(time.Since(auth.LastValidatedAt)))
+				if auth.Identity != "" {
+					fmt.Printf("Identity:  %s\n", auth.Identity)
+				}
+				return nil
+			}
+		}
+	}
+
+	// Not in cache or stale, validate via API
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -143,6 +178,10 @@ func authStatusHandler(cmd *cobra.Command, args []string) error {
 		fmt.Printf("API check: ✓\n")
 		if identity != "" {
 			fmt.Printf("Identity:  %s\n", identity)
+		}
+		// Update cache
+		if store != nil {
+			_ = store.SetAuthStatus(cfg.APIKeyHash(), identity)
 		}
 	}
 	return nil

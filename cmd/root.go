@@ -1,11 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/supermodeltools/uncompact/internal/api"
+	"github.com/supermodeltools/uncompact/internal/cache"
 	"github.com/supermodeltools/uncompact/internal/config"
 )
 
@@ -30,7 +34,7 @@ Modes:
          analysis (file structure, git history, CLAUDE.md). This is the default
          when no API key is configured.
 
-  api    Uses the Supermodel Public API for AI-powered summarization, smarter
+	api    Uses the Supermodel Public API for AI-powered summarization, smarter
          context prioritization, and session state analysis. Requires an API key.
 
 Get started (local mode — no API key needed):
@@ -39,8 +43,67 @@ Get started (local mode — no API key needed):
 Get started (API mode — full AI-powered features):
   uncompact auth login    # Authenticate via dashboard.supermodeltools.com
   uncompact install       # Add hooks to Claude Code settings.json`,
-	SilenceErrors: true,
-	SilenceUsage:  true,
+	SilenceErrors:     true,
+	SilenceUsage:      true,
+	PersistentPreRunE: checkAuth,
+}
+
+func checkAuth(cmd *cobra.Command, args []string) error {
+	// Skip auth check for auth commands, help, and completion
+	for c := cmd; c != nil; c = c.Parent() {
+		if c.Name() == "auth" || c.Name() == "help" || c.Name() == "completion" {
+			return nil
+		}
+	}
+
+	cfg, err := config.Load(apiKey)
+	if err != nil {
+		return err
+	}
+
+	if !cfg.IsAuthenticated() {
+		return nil
+	}
+
+	keyHash := cfg.APIKeyHash()
+	dbPath, _ := config.DBPath()
+	var store *cache.Store
+	if dbPath != "" {
+		store, _ = cache.Open(dbPath)
+	}
+
+	if store != nil {
+		defer store.Close()
+		if auth, _ := store.GetAuthStatus(keyHash); auth != nil {
+			// Cache is valid for 24h
+			if time.Since(auth.LastValidatedAt) < 24*time.Hour {
+				if auth.Identity != "" {
+					fmt.Fprintf(os.Stderr, "[uncompact] Authenticated as %s\n", auth.Identity)
+				}
+				return nil
+			}
+		}
+	}
+
+	// Stale or missing cache, validate via API
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	client := api.New(cfg.BaseURL, cfg.APIKey, false, nil)
+	identity, err := client.ValidateKey(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[uncompact] ⚠️ API key validation failed: %v\n", err)
+		return nil // Don't block command execution on auth failure
+	}
+
+	if identity != "" {
+		fmt.Fprintf(os.Stderr, "[uncompact] Authenticated as %s\n", identity)
+		if store != nil {
+			_ = store.SetAuthStatus(keyHash, identity)
+		}
+	}
+
+	return nil
 }
 
 // Execute runs the root command.

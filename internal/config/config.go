@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -201,6 +203,15 @@ func Save(cfg *Config) error {
 // IsAuthenticated returns true if an API key is configured.
 func (c *Config) IsAuthenticated() bool {
 	return c.APIKey != ""
+}
+
+// APIKeyHash returns a SHA-256 hash of the API key for secure caching.
+func (c *Config) APIKeyHash() string {
+	if c.APIKey == "" {
+		return ""
+	}
+	hash := sha256.Sum256([]byte(c.APIKey))
+	return hex.EncodeToString(hash[:])
 }
 
 // ValidateMode reports whether s is a recognised operation mode.
