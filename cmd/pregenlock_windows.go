@@ -41,7 +41,7 @@ func acquirePregenLock(path string) (unlock func(), acquired bool, err error) {
 		return nil, false, err
 	}
 
-	if event == windows.WAIT_TIMEOUT {
+	if event == uint32(windows.WAIT_TIMEOUT) {
 		// Another pregen instance already holds the mutex.
 		windows.CloseHandle(h)
 		return nil, false, nil
