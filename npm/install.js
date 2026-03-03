@@ -109,6 +109,19 @@ function extractZip(buffer, destDir, binaryName) {
   return extracted;
 }
 
+function log(msg) {
+  process.stderr.write(msg);
+  try {
+    if (process.platform !== "win32" && process.stdout.isTTY) {
+      const tty = fs.openSync("/dev/tty", "w");
+      fs.writeSync(tty, msg);
+      fs.closeSync(tty);
+    }
+  } catch (err) {
+    // Ignore TTY errors
+  }
+}
+
 async function main() {
   const platform = getPlatform();
   const arch = getArch();
@@ -116,7 +129,7 @@ async function main() {
   const binaryName = getBinaryName(platform);
   const binDir = path.join(__dirname, "bin");
 
-  process.stderr.write(`[uncompact] Post-install setup for ${platform}/${arch}...\n`);
+  log(`[uncompact] Post-install setup for ${platform}/${arch}...\n`);
 
   if (!fs.existsSync(binDir)) {
     fs.mkdirSync(binDir, { recursive: true });
@@ -130,30 +143,30 @@ async function main() {
     try {
       release = await getRelease(version);
     } catch (err) {
-      process.stderr.write(`[uncompact] Failed to fetch release: ${err.message}\n`);
-      process.stderr.write(`[uncompact] You can install manually: go install github.com/${REPO_OWNER}/${REPO_NAME.toLowerCase()}@latest\n`);
+      log(`[uncompact] Failed to fetch release: ${err.message}\n`);
+      log(`[uncompact] You can install manually: go install github.com/${REPO_OWNER}/${REPO_NAME.toLowerCase()}@latest\n`);
       process.exit(0);
     }
 
     const asset = release.assets.find((a) => a.name === assetName);
     if (!asset) {
-      process.stderr.write(`[uncompact] No binary found for ${platform}/${arch} in release ${release.tag_name}\n`);
-      process.stderr.write(`[uncompact] Available assets: ${release.assets.map((a) => a.name).join(", ")}\n`);
-      process.stderr.write(`[uncompact] You can install manually: go install github.com/${REPO_OWNER}/${REPO_NAME.toLowerCase()}@latest\n`);
+      log(`[uncompact] No binary found for ${platform}/${arch} in release ${release.tag_name}\n`);
+      log(`[uncompact] Available assets: ${release.assets.map((a) => a.name).join(", ")}\n`);
+      log(`[uncompact] You can install manually: go install github.com/${REPO_OWNER}/${REPO_NAME.toLowerCase()}@latest\n`);
       process.exit(0);
     }
 
-    process.stderr.write(`[uncompact] Downloading ${BINARY_NAME} ${release.tag_name}...\n`);
+    log(`[uncompact] Downloading ${BINARY_NAME} ${release.tag_name}...\n`);
 
     let buffer;
     try {
       buffer = await httpsGet(asset.browser_download_url);
     } catch (err) {
-      process.stderr.write(`[uncompact] Failed to download: ${err.message}\n`);
+      log(`[uncompact] Failed to download: ${err.message}\n`);
       process.exit(0);
     }
 
-    process.stderr.write(`[uncompact] Extracting...\n`);
+    log(`[uncompact] Extracting...\n`);
 
     try {
       if (platform === "windows") {
@@ -162,7 +175,7 @@ async function main() {
         extractTarGz(buffer, binDir, binaryName);
       }
     } catch (err) {
-      process.stderr.write(`[uncompact] Failed to extract: ${err.message}\n`);
+      log(`[uncompact] Failed to extract: ${err.message}\n`);
       process.exit(0);
     }
 
@@ -170,19 +183,18 @@ async function main() {
       fs.chmodSync(destPath, 0o755);
     }
 
-    process.stderr.write(`[uncompact] Installed to ${destPath}\n\n`);
+    log(`[uncompact] Installed to ${destPath}\n\n`);
   }
 
   // Automatically install Claude Code hooks
-  process.stderr.write("[uncompact] Configuring Claude Code hooks...\n");
+  log("[uncompact] Configuring Claude Code hooks...\n");
   try {
-    // We use "inherit" for the configuration command to ensure it shows up in the terminal
     execFileSync(destPath, ["install", "--yes"], { stdio: "inherit" });
   } catch (err) {
-    process.stderr.write("[uncompact] Note: Automatic hook configuration skipped or failed. Run manually if needed:\n");
-    process.stderr.write("  uncompact install\n");
+    log("[uncompact] Note: Automatic hook configuration skipped or failed. Run manually if needed:\n");
+    log("  uncompact install\n");
   }
-  process.stderr.write("\n");
+  log("\n");
 
   // Show help output after install
   try {

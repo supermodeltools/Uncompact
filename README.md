@@ -70,13 +70,17 @@ env:
 **Via npm (recommended):**
 
 ```bash
+# Install CLI and automatically configure Claude Code hooks
 npm install -g uncompact
 ```
 
-Or run without installing:
+*Note: npm might hide the configuration output. You can verify the installation with `uncompact verify-install`.*
+
+**Or run/install without global installation:**
 
 ```bash
-npx uncompact --help
+# This will show full interactive output
+npx uncompact install
 ```
 
 **Via Go:**
