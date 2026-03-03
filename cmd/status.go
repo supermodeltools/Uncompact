@@ -147,6 +147,36 @@ func statusHandler(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("Cache:    %s\n", formatCacheStatus(graph != nil, fresh, expiresAt, time.Now()))
 
+	fmt.Println()
+	fmt.Println("Next Steps:")
+	if !cfg.IsAuthenticated() {
+		fmt.Println("  1. Run 'uncompact auth login' to connect your Supermodel account.")
+		fmt.Println("  2. Run 'uncompact install' to add hooks to Claude Code.")
+	} else {
+		// Key exists, but is it valid?
+		keyHash := cfg.APIKeyHash()
+		var isValid bool
+		if store != nil {
+			if auth, _ := store.GetAuthStatus(keyHash); auth != nil {
+				isValid = time.Since(auth.LastValidatedAt) < 24*time.Hour
+			}
+		}
+
+		if !isValid {
+			fmt.Println("  1. Your API key needs validation or is invalid. Run 'uncompact auth login'.")
+		}
+
+		if settingsPath != "" {
+			installed, _ := hooks.Verify(settingsPath)
+			if !installed {
+				fmt.Println("  2. Run 'uncompact install' to add hooks to Claude Code.")
+			} else if isValid {
+				fmt.Println("  ✓ You're all set! Open Claude Code to start using Uncompact.")
+				fmt.Println("    Context will be automatically reinjected after each compaction.")
+			}
+		}
+	}
+
 	return nil
 }
 

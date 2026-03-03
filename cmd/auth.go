@@ -38,8 +38,17 @@ var authLogoutCmd = &cobra.Command{
 	RunE:  authLogoutHandler,
 }
 
+var authOpenCmd = &cobra.Command{
+	Use:   "open",
+	Short: "Open the Supermodel dashboard in your browser",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("Opening " + config.DashboardKeyURL + "...")
+		_ = browser.OpenURL(config.DashboardKeyURL)
+	},
+}
+
 func init() {
-	authCmd.AddCommand(authLoginCmd, authStatusCmd, authLogoutCmd)
+	authCmd.AddCommand(authLoginCmd, authStatusCmd, authLogoutCmd, authOpenCmd)
 	rootCmd.AddCommand(authCmd)
 }
 

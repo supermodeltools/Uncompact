@@ -202,6 +202,19 @@ async function main() {
   try {
     console.log();
     execFileSync(destPath, ["status"], { stdio: "inherit" });
+
+    // If not authenticated, take them to the next step automatically
+    const config = require(path.join(__dirname, "..", "package.json")); // Need version check logic? No, just use binary
+    const checkAuthCmd = `"${destPath}" auth status`;
+    try {
+      const authStatus = execSync(checkAuthCmd).toString();
+      if (authStatus.includes("Status: not authenticated") || authStatus.includes("✗")) {
+        console.log("\n[uncompact] Authentication required. Taking you to the dashboard...");
+        try {
+          execFileSync(destPath, ["auth", "open"], { stdio: "inherit" });
+        } catch (e) {}
+      }
+    } catch (e) {}
   } catch (err) {
     // If status fails, show help as a fallback if we haven't shown anything yet
     if (!installSuccessful) {
