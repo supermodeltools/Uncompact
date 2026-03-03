@@ -76,7 +76,7 @@ npm install -g uncompact
 Or run without installing:
 
 ```bash
-npx uncompact install
+npx uncompact --help
 ```
 
 **Via Go:**

@@ -193,6 +193,21 @@ func Render(graph *api.ProjectGraph, projectName string, opts RenderOptions) (st
 		}
 		result += note
 		resultTokens = CountTokens(result)
+
+		// Final hard-budget guard: if the appended note still pushes it over
+		if opts.MaxTokens > 0 && resultTokens > opts.MaxTokens {
+			noteTokens := CountTokens(buildNote(resultTokens))
+			budget := opts.MaxTokens - noteTokens
+			if budget < 1 {
+				budget = 1
+			}
+			truncated, truncatedTokens, truncErr := truncateToTokenBudget(graph, projectName, budget, graph.Stats.CircularDependencyCycles, opts.WorkingMemory, opts.SessionSnapshot, opts.ClaudeMD, opts.LocalMode, opts.Stale, staleDuration)
+			if truncErr != nil {
+				return "", 0, truncErr
+			}
+			result = truncated + buildNote(truncatedTokens)
+			resultTokens = CountTokens(result)
+		}
 	}
 
 	return result, resultTokens, nil
