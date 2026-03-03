@@ -83,6 +83,20 @@ npm install -g uncompact
 npx uncompact install
 ```
 
+### 🗑 Uninstall
+
+To remove the Claude Code hooks only:
+
+```bash
+uncompact uninstall
+```
+
+To **completely remove** Uncompact (including config, cache, and the global package) for end-to-end testing:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/supermodeltools/Uncompact/main/scripts/cleanup.sh | bash
+```
+
 **Via Go:**
 
 ```bash

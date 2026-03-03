@@ -10,7 +10,10 @@ import (
 	"github.com/supermodeltools/uncompact/internal/hooks"
 )
 
-var uninstallDryRun bool
+var (
+	uninstallDryRun bool
+	uninstallYes    bool
+)
 
 var uninstallCmd = &cobra.Command{
 	Use:   "uninstall",
@@ -22,6 +25,7 @@ hooks from it, leaving any other hooks untouched. It shows a diff before writing
 
 func init() {
 	uninstallCmd.Flags().BoolVar(&uninstallDryRun, "dry-run", false, "Show what would be changed without writing")
+	uninstallCmd.Flags().BoolVarP(&uninstallYes, "yes", "y", false, "Skip confirmation prompt and apply changes")
 	rootCmd.AddCommand(uninstallCmd)
 }
 
@@ -52,21 +56,25 @@ func uninstallHandler(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Show diff and confirm
-	fmt.Println("The following changes will be made to settings.json:")
-	fmt.Println()
-	fmt.Println(result.Diff)
-	fmt.Println()
-	fmt.Print("Apply these changes? [y/N]: ")
+	if !uninstallYes {
+		// Show diff and confirm
+		fmt.Println("The following changes will be made to settings.json:")
+		fmt.Println()
+		fmt.Println(result.Diff)
+		fmt.Println()
+		fmt.Print("Apply these changes? [y/N]: ")
 
-	scanner := bufio.NewScanner(os.Stdin)
-	if !scanner.Scan() {
-		return fmt.Errorf("no input")
-	}
-	answer := strings.TrimSpace(strings.ToLower(scanner.Text()))
-	if answer != "y" && answer != "yes" {
-		fmt.Println("Aborted.")
-		return nil
+		scanner := bufio.NewScanner(os.Stdin)
+		if !scanner.Scan() {
+			return fmt.Errorf("no input")
+		}
+		answer := strings.TrimSpace(strings.ToLower(scanner.Text()))
+		if answer != "y" && answer != "yes" {
+			fmt.Println("Aborted.")
+			return nil
+		}
+	} else {
+		fmt.Println("Removing Uncompact hooks from settings.json...")
 	}
 
 	_, err = hooks.Uninstall(settingsPath, false)
