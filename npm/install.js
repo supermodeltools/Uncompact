@@ -125,7 +125,6 @@ async function main() {
   const destPath = path.join(binDir, binaryName);
 
   if (fs.existsSync(destPath)) {
-    console.log(`[uncompact] Binary already exists at ${destPath}`);
     return;
   }
 
@@ -134,30 +133,31 @@ async function main() {
   try {
     release = await getRelease(version);
   } catch (err) {
-    console.error(`[uncompact] Failed to fetch release: ${err.message}`);
-    console.error(`[uncompact] You can install manually: go install github.com/${REPO_OWNER}/${REPO_NAME.toLowerCase()}@latest`);
+    process.stderr.write(`[uncompact] Failed to fetch release: ${err.message}\n`);
+    process.stderr.write(`[uncompact] You can install manually: go install github.com/${REPO_OWNER}/${REPO_NAME.toLowerCase()}@latest\n`);
     process.exit(0);
   }
 
   const asset = release.assets.find((a) => a.name === assetName);
   if (!asset) {
-    console.error(`[uncompact] No binary found for ${platform}/${arch} in release ${release.tag_name}`);
-    console.error(`[uncompact] Available assets: ${release.assets.map((a) => a.name).join(", ")}`);
-    console.error(`[uncompact] You can install manually: go install github.com/${REPO_OWNER}/${REPO_NAME.toLowerCase()}@latest`);
+    process.stderr.write(`[uncompact] No binary found for ${platform}/${arch} in release ${release.tag_name}\n`);
+    process.stderr.write(`[uncompact] Available assets: ${release.assets.map((a) => a.name).join(", ")}\n`);
+    process.stderr.write(`[uncompact] You can install manually: go install github.com/${REPO_OWNER}/${REPO_NAME.toLowerCase()}@latest\n`);
     process.exit(0);
   }
 
-  console.log(`[uncompact] Downloading ${asset.name}...`);
+  process.stderr.write(`[uncompact] Installing ${BINARY_NAME} ${release.tag_name} for ${platform}/${arch}...\n`);
+  process.stderr.write(`[uncompact] Downloading ${asset.name}...\n`);
 
   let buffer;
   try {
     buffer = await httpsGet(asset.browser_download_url);
   } catch (err) {
-    console.error(`[uncompact] Failed to download: ${err.message}`);
+    process.stderr.write(`[uncompact] Failed to download: ${err.message}\n`);
     process.exit(0);
   }
 
-  console.log(`[uncompact] Extracting...`);
+  process.stderr.write(`[uncompact] Extracting...\n`);
 
   try {
     if (platform === "windows") {
@@ -166,7 +166,7 @@ async function main() {
       extractTarGz(buffer, binDir, binaryName);
     }
   } catch (err) {
-    console.error(`[uncompact] Failed to extract: ${err.message}`);
+    process.stderr.write(`[uncompact] Failed to extract: ${err.message}\n`);
     process.exit(0);
   }
 
@@ -174,22 +174,23 @@ async function main() {
     fs.chmodSync(destPath, 0o755);
   }
 
-  console.log(`[uncompact] Installed to ${destPath}`);
-  console.log();
+  process.stderr.write(`[uncompact] Installed to ${destPath}\n\n`);
 
   // Automatically install Claude Code hooks
-  console.log("[uncompact] Configuring Claude Code hooks...");
+  process.stderr.write("[uncompact] Configuring Claude Code hooks...\n");
   try {
-    execFileSync(destPath, ["install", "--yes"], { stdio: "inherit" });
+    // We redirect stdout to stderr to ensure visibility during npm install
+    execFileSync(destPath, ["install", "--yes"], { stdio: ["inherit", process.stderr, "inherit"] });
   } catch (err) {
-    console.error("[uncompact] Failed to automatically configure hooks. You can run it manually:");
-    console.error("  uncompact install");
+    process.stderr.write("[uncompact] Failed to automatically configure hooks. You can run it manually:\n");
+    process.stderr.write("  uncompact install\n");
   }
-  console.log();
+  process.stderr.write("\n");
 
   // Show help output after install
   try {
-    execFileSync(destPath, [], { stdio: "inherit" });
+    // We redirect stdout to stderr to ensure visibility during npm install
+    execFileSync(destPath, [], { stdio: ["inherit", process.stderr, "inherit"] });
   } catch (err) {
     // Ignore errors from running the binary itself
   }
