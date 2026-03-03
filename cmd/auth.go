@@ -100,7 +100,12 @@ func authLoginHandler(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		fmt.Println("✗")
 		if strings.Contains(err.Error(), "402") {
-			return fmt.Errorf("subscription required: visit %s to subscribe", config.DashboardURL)
+			fmt.Println()
+			fmt.Println("⚠️  SUBSCRIPTION REQUIRED")
+			fmt.Println("   The API key is valid, but your account requires an active subscription.")
+			fmt.Printf("   Please visit: %s\n", config.DashboardURL)
+			fmt.Println()
+			return fmt.Errorf("subscription required")
 		}
 		return fmt.Errorf("key validation failed: %w", err)
 	}

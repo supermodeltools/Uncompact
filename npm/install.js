@@ -212,14 +212,15 @@ async function main() {
         const authStatus = execSync(checkAuthCmd).toString();
         if (authStatus.includes("Status: not authenticated") || authStatus.includes("✗")) {
           log("\n[uncompact] Authentication required. Starting login flow...\n");
-          try {
-            // Use 'auth login' which opens browser AND prompts for key
-            execFileSync(destPath, ["auth", "login"], { stdio: "inherit" });
-            log("\n[uncompact] Login successful.\n");
-          } catch (err) {
-            log(`\n[uncompact] Login process exited: ${err.message}\n`);
-            log("[uncompact] You can run it manually later: uncompact auth login\n");
-          }
+        try {
+          // Use 'auth login' which opens browser AND prompts for key
+          execFileSync(destPath, ["auth", "login"], { stdio: "inherit" });
+          log("\n[uncompact] Login successful.\n");
+        } catch (err) {
+          // Command failed (e.g. invalid key, 402, or user cancelled)
+          // We don't print the error message here because 'inherit' already showed it
+          log("\n[uncompact] Login incomplete or failed. You can run it manually later: uncompact auth login\n");
+        }
         }
       } catch (e) {}
     } else {
