@@ -238,6 +238,8 @@ func mergeHooks(existing, toAdd map[string][]Hook) map[string][]Hook {
 						matches = append(matches, "uncompact show-cache", "show-hook.sh")
 					} else if strings.Contains(cmd.Command, "pregen") {
 						matches = append(matches, "uncompact pregen")
+					} else if strings.Contains(cmd.Command, "show-hook.sh") {
+						matches = append(matches, "uncompact show-cache", "show-hook.sh")
 					}
 				}
 				if commandExistsInHooks(result[event], matches...) {
