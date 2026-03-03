@@ -1,0 +1,37 @@
+{
+  "name": "uncompact",
+  "version": "0.0.0",
+  "description": "Stop Claude Code compaction from making your AI stupid. Re-inject project context after compaction via the Supermodel API.",
+  "author": "Supermodel <abe@supermodel.software>",
+  "license": "MIT",
+  "homepage": "https://github.com/supermodeltools/Uncompact",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/supermodeltools/Uncompact.git"
+  },
+  "bugs": {
+    "url": "https://github.com/supermodeltools/Uncompact/issues"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "cli",
+    "ai",
+    "context",
+    "compaction",
+    "supermodel"
+  ],
+  "bin": {
+    "uncompact": "npm/run.js"
+  },
+  "scripts": {
+    "postinstall": "node npm/install.js"
+  },
+  "files": [
+    "npm/",
+    "hooks/"
+  ],
+  "engines": {
+    "node": ">=16"
+  }
+}

@@ -67,11 +67,25 @@ env:
 
 ### 1. Install
 
+**Via npm (recommended):**
+
+```bash
+npm install -g uncompact
+```
+
+Or run without installing:
+
+```bash
+npx uncompact install
+```
+
+**Via Go:**
+
 ```bash
 go install github.com/supermodeltools/uncompact@latest
 ```
 
-Or download a binary from [Releases](https://github.com/supermodeltools/Uncompact/releases).
+**Or download a binary** from [Releases](https://github.com/supermodeltools/Uncompact/releases).
 
 ### 2. Authenticate
 
