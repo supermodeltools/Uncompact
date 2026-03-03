@@ -91,11 +91,13 @@ To remove the Claude Code hooks only:
 uncompact uninstall
 ```
 
-To **completely remove** Uncompact (including config, cache, and the global package) for end-to-end testing:
+To **completely remove** Uncompact configuration and cached data:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/supermodeltools/Uncompact/main/scripts/cleanup.sh | bash
+uncompact uninstall --total
 ```
+
+*Note: After running the above, you can remove the CLI itself with `npm uninstall -g uncompact`.*
 
 **Via Go:**
 
