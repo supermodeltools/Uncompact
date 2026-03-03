@@ -116,7 +116,7 @@ async function main() {
   const binaryName = getBinaryName(platform);
   const binDir = path.join(__dirname, "bin");
 
-  console.log(`[uncompact] Installing ${BINARY_NAME} for ${platform}/${arch}...`);
+  process.stderr.write(`[uncompact] Post-install setup for ${platform}/${arch}...\n`);
 
   if (!fs.existsSync(binDir)) {
     fs.mkdirSync(binDir, { recursive: true });
@@ -124,73 +124,69 @@ async function main() {
 
   const destPath = path.join(binDir, binaryName);
 
-  if (fs.existsSync(destPath)) {
-    return;
-  }
-
-  const version = getPackageVersion();
-  let release;
-  try {
-    release = await getRelease(version);
-  } catch (err) {
-    process.stderr.write(`[uncompact] Failed to fetch release: ${err.message}\n`);
-    process.stderr.write(`[uncompact] You can install manually: go install github.com/${REPO_OWNER}/${REPO_NAME.toLowerCase()}@latest\n`);
-    process.exit(0);
-  }
-
-  const asset = release.assets.find((a) => a.name === assetName);
-  if (!asset) {
-    process.stderr.write(`[uncompact] No binary found for ${platform}/${arch} in release ${release.tag_name}\n`);
-    process.stderr.write(`[uncompact] Available assets: ${release.assets.map((a) => a.name).join(", ")}\n`);
-    process.stderr.write(`[uncompact] You can install manually: go install github.com/${REPO_OWNER}/${REPO_NAME.toLowerCase()}@latest\n`);
-    process.exit(0);
-  }
-
-  process.stderr.write(`[uncompact] Installing ${BINARY_NAME} ${release.tag_name} for ${platform}/${arch}...\n`);
-  process.stderr.write(`[uncompact] Downloading ${asset.name}...\n`);
-
-  let buffer;
-  try {
-    buffer = await httpsGet(asset.browser_download_url);
-  } catch (err) {
-    process.stderr.write(`[uncompact] Failed to download: ${err.message}\n`);
-    process.exit(0);
-  }
-
-  process.stderr.write(`[uncompact] Extracting...\n`);
-
-  try {
-    if (platform === "windows") {
-      extractZip(buffer, binDir, binaryName);
-    } else {
-      extractTarGz(buffer, binDir, binaryName);
+  if (!fs.existsSync(destPath)) {
+    const version = getPackageVersion();
+    let release;
+    try {
+      release = await getRelease(version);
+    } catch (err) {
+      process.stderr.write(`[uncompact] Failed to fetch release: ${err.message}\n`);
+      process.stderr.write(`[uncompact] You can install manually: go install github.com/${REPO_OWNER}/${REPO_NAME.toLowerCase()}@latest\n`);
+      process.exit(0);
     }
-  } catch (err) {
-    process.stderr.write(`[uncompact] Failed to extract: ${err.message}\n`);
-    process.exit(0);
-  }
 
-  if (platform !== "windows") {
-    fs.chmodSync(destPath, 0o755);
-  }
+    const asset = release.assets.find((a) => a.name === assetName);
+    if (!asset) {
+      process.stderr.write(`[uncompact] No binary found for ${platform}/${arch} in release ${release.tag_name}\n`);
+      process.stderr.write(`[uncompact] Available assets: ${release.assets.map((a) => a.name).join(", ")}\n`);
+      process.stderr.write(`[uncompact] You can install manually: go install github.com/${REPO_OWNER}/${REPO_NAME.toLowerCase()}@latest\n`);
+      process.exit(0);
+    }
 
-  process.stderr.write(`[uncompact] Installed to ${destPath}\n\n`);
+    process.stderr.write(`[uncompact] Downloading ${BINARY_NAME} ${release.tag_name}...\n`);
+
+    let buffer;
+    try {
+      buffer = await httpsGet(asset.browser_download_url);
+    } catch (err) {
+      process.stderr.write(`[uncompact] Failed to download: ${err.message}\n`);
+      process.exit(0);
+    }
+
+    process.stderr.write(`[uncompact] Extracting...\n`);
+
+    try {
+      if (platform === "windows") {
+        extractZip(buffer, binDir, binaryName);
+      } else {
+        extractTarGz(buffer, binDir, binaryName);
+      }
+    } catch (err) {
+      process.stderr.write(`[uncompact] Failed to extract: ${err.message}\n`);
+      process.exit(0);
+    }
+
+    if (platform !== "windows") {
+      fs.chmodSync(destPath, 0o755);
+    }
+
+    process.stderr.write(`[uncompact] Installed to ${destPath}\n\n`);
+  }
 
   // Automatically install Claude Code hooks
   process.stderr.write("[uncompact] Configuring Claude Code hooks...\n");
   try {
-    // We redirect stdout to stderr to ensure visibility during npm install
-    execFileSync(destPath, ["install", "--yes"], { stdio: ["inherit", process.stderr, "inherit"] });
+    // We use "inherit" for the configuration command to ensure it shows up in the terminal
+    execFileSync(destPath, ["install", "--yes"], { stdio: "inherit" });
   } catch (err) {
-    process.stderr.write("[uncompact] Failed to automatically configure hooks. You can run it manually:\n");
+    process.stderr.write("[uncompact] Note: Automatic hook configuration skipped or failed. Run manually if needed:\n");
     process.stderr.write("  uncompact install\n");
   }
   process.stderr.write("\n");
 
   // Show help output after install
   try {
-    // We redirect stdout to stderr to ensure visibility during npm install
-    execFileSync(destPath, [], { stdio: ["inherit", process.stderr, "inherit"] });
+    execFileSync(destPath, [], { stdio: "inherit" });
   } catch (err) {
     // Ignore errors from running the binary itself
   }
