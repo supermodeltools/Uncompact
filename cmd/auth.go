@@ -170,7 +170,11 @@ func authLoginBrowser(cfg *config.Config) (string, error) {
 		_ = server.Shutdown(ctx)
 	}()
 
-	dashURL := fmt.Sprintf("%s?port=%d&state=%s", config.DashboardCLIAuthURL, port, state)
+	cliAuthURL := config.DashboardCLIAuthURL
+	if override := os.Getenv("UNCOMPACT_CLI_AUTH_URL"); override != "" {
+		cliAuthURL = override
+	}
+	dashURL := fmt.Sprintf("%s?port=%d&state=%s", cliAuthURL, port, state)
 	fmt.Println("Opening your browser to sign in...")
 	fmt.Printf("  %s\n\n", dashURL)
 	fmt.Println("Waiting for authentication (this will timeout in 2 minutes)...")
