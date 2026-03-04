@@ -2,7 +2,11 @@ package cmd
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -14,6 +18,8 @@ import (
 	"github.com/supermodeltools/uncompact/internal/config"
 	"golang.org/x/term"
 )
+
+var noBrowser bool
 
 var authCmd = &cobra.Command{
 	Use:   "auth",
@@ -48,8 +54,38 @@ var authOpenCmd = &cobra.Command{
 }
 
 func init() {
+	authLoginCmd.Flags().BoolVar(&noBrowser, "no-browser", false, "Skip browser-based login and paste API key manually")
 	authCmd.AddCommand(authLoginCmd, authStatusCmd, authLogoutCmd, authOpenCmd)
 	rootCmd.AddCommand(authCmd)
+}
+
+const callbackTimeout = 2 * time.Minute
+
+const successHTML = `<!DOCTYPE html>
+<html>
+<head><title>Uncompact</title>
+<style>
+  body { font-family: system-ui, sans-serif; display: flex; justify-content: center;
+         align-items: center; min-height: 100vh; margin: 0; background: #0f172a; color: #e2e8f0; }
+  .card { text-align: center; padding: 2rem; }
+  h1 { color: #5eead4; margin-bottom: 0.5rem; }
+  p { color: #94a3b8; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Authenticated</h1>
+  <p>You can close this tab and return to your terminal.</p>
+</div>
+</body>
+</html>`
+
+func generateState() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 func authLoginHandler(cmd *cobra.Command, args []string) error {
@@ -58,6 +94,121 @@ func authLoginHandler(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	isTTY := term.IsTerminal(int(os.Stdin.Fd()))
+
+	if noBrowser || !isTTY {
+		return authLoginManual(cfg)
+	}
+
+	key, err := authLoginBrowser(cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[uncompact] Browser login failed: %v\n", err)
+		fmt.Println()
+		fmt.Println("Falling back to manual login...")
+		fmt.Println()
+		return authLoginManual(cfg)
+	}
+
+	return saveAndCacheKey(cfg, key)
+}
+
+// authLoginBrowser starts a localhost callback server, opens the dashboard,
+// and waits for the key to arrive via redirect.
+func authLoginBrowser(cfg *config.Config) (string, error) {
+	state, err := generateState()
+	if err != nil {
+		return "", fmt.Errorf("generating state: %w", err)
+	}
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", fmt.Errorf("starting callback server: %w", err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+
+	type callbackResult struct {
+		key string
+		err error
+	}
+	resultCh := make(chan callbackResult, 1)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("state") != state {
+			http.Error(w, "Invalid state parameter", http.StatusForbidden)
+			resultCh <- callbackResult{err: fmt.Errorf("state mismatch (possible CSRF)")}
+			return
+		}
+
+		key := r.URL.Query().Get("key")
+		if key == "" {
+			errMsg := r.URL.Query().Get("error")
+			if errMsg == "" {
+				errMsg = "no key received"
+			}
+			http.Error(w, errMsg, http.StatusBadRequest)
+			resultCh <- callbackResult{err: fmt.Errorf("dashboard returned error: %s", errMsg)}
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, successHTML)
+
+		resultCh <- callbackResult{key: key}
+	})
+
+	server := &http.Server{Handler: mux}
+	go func() {
+		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+			resultCh <- callbackResult{err: fmt.Errorf("callback server error: %w", err)}
+		}
+	}()
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = server.Shutdown(ctx)
+	}()
+
+	dashURL := fmt.Sprintf("%s?port=%d&state=%s", config.DashboardCLIAuthURL, port, state)
+	fmt.Println("Opening your browser to sign in...")
+	fmt.Printf("  %s\n\n", dashURL)
+	fmt.Println("Waiting for authentication (this will timeout in 2 minutes)...")
+
+	if err := browser.OpenURL(dashURL); err != nil {
+		return "", fmt.Errorf("opening browser: %w", err)
+	}
+
+	select {
+	case result := <-resultCh:
+		if result.err != nil {
+			return "", result.err
+		}
+		fmt.Println()
+		fmt.Print("Validating key... ")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		testClient := api.New(cfg.BaseURL, result.key, false, nil)
+		identity, err := testClient.ValidateKey(ctx)
+		if err != nil {
+			fmt.Println("✗")
+			return "", fmt.Errorf("key validation failed: %w", err)
+		}
+		fmt.Println("✓")
+		if identity != "" {
+			fmt.Printf("Authenticated as: %s\n", identity)
+		}
+		return result.key, nil
+
+	case <-time.After(callbackTimeout):
+		return "", fmt.Errorf("timed out waiting for browser callback")
+	}
+}
+
+// authLoginManual is the original paste-based login flow.
+func authLoginManual(cfg *config.Config) error {
 	fmt.Println("Uncompact uses the Supermodel Public API.")
 	fmt.Println()
 	fmt.Println("1. Opening your browser to the Supermodel dashboard...")
@@ -79,7 +230,6 @@ func authLoginHandler(cmd *cobra.Command, args []string) error {
 		}
 		key = strings.TrimSpace(string(b))
 	} else {
-		// Non-interactive fallback (e.g. piped input in CI)
 		var raw string
 		if _, err := fmt.Fscanln(os.Stdin, &raw); err != nil {
 			return fmt.Errorf("reading API key: %w", err)
@@ -90,7 +240,6 @@ func authLoginHandler(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API key cannot be empty")
 	}
 
-	// Validate the key
 	fmt.Print("Validating key... ")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -101,7 +250,7 @@ func authLoginHandler(cmd *cobra.Command, args []string) error {
 		fmt.Println("✗")
 		if strings.Contains(err.Error(), "402") {
 			fmt.Println()
-			fmt.Println("⚠️  SUBSCRIPTION REQUIRED")
+			fmt.Println("SUBSCRIPTION REQUIRED")
 			fmt.Println("   The API key is valid, but your account requires an active subscription.")
 			fmt.Printf("   Please visit: %s\n", config.DashboardURL)
 			fmt.Println()
@@ -115,26 +264,28 @@ func authLoginHandler(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Authenticated as: %s\n", identity)
 	}
 
-	// Warn if environment variable is masking
+	return saveAndCacheKey(cfg, key)
+}
+
+// saveAndCacheKey encrypts and saves the key, then updates the auth cache.
+func saveAndCacheKey(cfg *config.Config, key string) error {
 	if os.Getenv(config.EnvAPIKey) != "" {
 		fmt.Println()
-		fmt.Printf("⚠️  WARNING: The environment variable %s is currently set.\n", config.EnvAPIKey)
-		fmt.Println("   It will continue to override the API key you just saved to the config file.")
-		fmt.Println("   To use the new key, you must unset the environment variable or update it.")
+		fmt.Printf("NOTE: The environment variable %s is currently set.\n", config.EnvAPIKey)
+		fmt.Println("   It will continue to override the API key saved to the config file.")
+		fmt.Println("   To use the new key, unset the environment variable or update it.")
 	}
 
-	// Save
 	cfg.APIKey = key
 	if err := config.Save(cfg); err != nil {
 		return fmt.Errorf("saving config: %w", err)
 	}
 
-	// Cache the auth status
 	dbPath, err := config.DBPath()
 	if err == nil {
 		if store, err := cache.Open(dbPath); err == nil {
 			defer store.Close()
-			_ = store.SetAuthStatus(cfg.APIKeyHash(), identity)
+			_ = store.SetAuthStatus(cfg.APIKeyHash(), "ok")
 		}
 	}
 

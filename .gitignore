@@ -12,6 +12,10 @@
 node_modules/
 npm/bin/
 package-lock.json
+uncompact-0.0.0.tgz
+
+# Wrangler
+.wrangler/
 
 # IDE
 .idea/

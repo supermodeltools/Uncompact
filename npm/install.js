@@ -3,7 +3,7 @@
 const https = require("https");
 const fs = require("fs");
 const path = require("path");
-const { execSync, execFileSync } = require("child_process");
+const { execFileSync } = require("child_process");
 const os = require("os");
 
 const REPO_OWNER = "supermodeltools";
@@ -189,52 +189,25 @@ async function main() {
 
   // Automatically install Claude Code hooks
   log("[uncompact] Configuring Claude Code hooks...\n");
-  let installSuccessful = false;
   try {
-    // The 'install' command now automatically shows the help menu upon completion
     execFileSync(destPath, ["install", "--yes"], { stdio: "inherit" });
-    installSuccessful = true;
   } catch (err) {
     log("[uncompact] Note: Automatic hook configuration skipped or failed. Run manually if needed:\n");
     log("  uncompact install\n");
   }
 
-  // Always show status to verify API key detection, regardless of install success
+  // Show status to verify setup
   try {
     console.log();
     execFileSync(destPath, ["status"], { stdio: "inherit" });
-
-    // If not authenticated, take them to the next step automatically
-    // Only attempt interactive login if we are in a terminal (TTY)
-    if (process.stdin.isTTY) {
-      const checkAuthCmd = `"${destPath}" auth status`;
-      try {
-        const authStatus = execSync(checkAuthCmd).toString();
-        if (authStatus.includes("Status: not authenticated") || authStatus.includes("✗")) {
-          log("\n[uncompact] Authentication required. Starting login flow...\n");
-        try {
-          // Use 'auth login' which opens browser AND prompts for key
-          execFileSync(destPath, ["auth", "login"], { stdio: "inherit" });
-          log("\n[uncompact] Login successful.\n");
-        } catch (err) {
-          // Command failed (e.g. invalid key, 402, or user cancelled)
-          // We don't print the error message here because 'inherit' already showed it
-          log("\n[uncompact] Login incomplete or failed. You can run it manually later: uncompact auth login\n");
-        }
-        }
-      } catch (e) {}
-    } else {
-      log("\n[uncompact] Authentication required. Run 'uncompact auth login' to connect your account.\n");
-    }
   } catch (err) {
-    // If status fails, show help as a fallback if we haven't shown anything yet
-    if (!installSuccessful) {
-      try {
-        execFileSync(destPath, [], { stdio: "inherit" });
-      } catch (e) {}
-    }
+    try {
+      execFileSync(destPath, [], { stdio: "inherit" });
+    } catch (e) {}
   }
+
   log("\n");
+  log("[uncompact] To authenticate: run 'uncompact auth login'\n");
 }
 
 main().catch((err) => {

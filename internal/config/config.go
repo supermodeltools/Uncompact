@@ -15,8 +15,9 @@ const (
 	EnvAPIKey    = "SUPERMODEL_API_KEY"
 	EnvMode      = "UNCOMPACT_MODE"
 	APIBaseURL   = "https://api.supermodeltools.com"
-	DashboardURL    = "https://dashboard.supermodeltools.com"
-	DashboardKeyURL = "https://dashboard.supermodeltools.com/api-keys/"
+	DashboardURL        = "https://dashboard.supermodeltools.com"
+	DashboardKeyURL     = "https://dashboard.supermodeltools.com/api-keys/"
+	DashboardCLIAuthURL = "https://dashboard.supermodeltools.com/cli-auth/"
 
 	ModeLocal = "local"
 	ModeAPI   = "api"
