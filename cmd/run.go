@@ -226,10 +226,13 @@ func runHandler(cmd *cobra.Command, args []string) error {
 		}(dbPath, proj.Hash, proj.Name, proj.RootDir)
 	}
 
-	// If no cache or forced refresh, fetch from API
+	// If no cache or forced refresh, fetch from API.
+	// Use a short timeout so the Stop hook never blocks a Claude Code session
+	// for more than ~90 seconds during an API outage. Long-running first-time
+	// fetches for large repos are handled by the background pregen hook.
 	if graph == nil || forceRefresh {
 		logFn("[debug] fetching from Supermodel API...")
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		defer cancel()
 
 		zipData, skipReport, err := zip.RepoZip(ctx, proj.RootDir)
@@ -469,8 +472,10 @@ func runLocalMode(logFn func(string, ...interface{})) error {
 }
 
 // runWithoutCache attempts an API fetch with no cache fallback.
+// Uses a short timeout so the Stop hook never blocks a Claude Code session
+// for more than ~90 seconds during an API outage.
 func runWithoutCache(cfg *config.Config, proj *project.Info, wm *project.WorkingMemory, snap *snapshot.SessionSnapshot, postCompact bool, logFn func(string, ...interface{})) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
 	zipData, skipReport, err := zip.RepoZip(ctx, proj.RootDir)
