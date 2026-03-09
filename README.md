@@ -50,7 +50,7 @@ This installs both hooks automatically:
 - **`SessionStart`** — runs `scripts/setup.sh` which auto-installs the `uncompact` binary via `go install` if not already present.
 - **`Stop`** — runs `scripts/uncompact-hook.sh` which reinjects context after every compaction event.
 
-> **Note:** After plugin installation, authenticate once with `uncompact auth login` to connect your Supermodel API key. That's it — no manual binary install or hook setup required.
+> **Note:** After plugin installation, run `uncompact auth login` once to authenticate. This also ensures hooks are installed — no separate `uncompact install` step needed.
 
 ### CI / GitHub Actions
 
@@ -65,22 +65,33 @@ env:
 
 ## Quick Start
 
-### 1. Install
-
-**Via npm (recommended):**
+### Via npm (recommended)
 
 ```bash
-# Install CLI and automatically configure Claude Code hooks
-npm install -g uncompact
+npm install -g uncompact --foreground-scripts
 ```
 
-*Note: npm might hide the configuration output. You can verify the installation with `uncompact verify-install`.*
+That's it. The installer downloads the binary, opens your browser for GitHub authentication, and installs the Claude Code hooks — all in one step.
 
-**Or run/install without global installation:**
+> `--foreground-scripts` is required so the interactive auth prompt is visible in your terminal.
+
+### Via Go or manual binary
 
 ```bash
-# This will show full interactive output
-npx uncompact install
+go install github.com/supermodeltools/uncompact@latest
+# then:
+uncompact auth login
+```
+
+`auth login` opens your browser for GitHub OAuth, saves your API key, and installs the Claude Code hooks automatically.
+
+**Or download a binary** from [Releases](https://github.com/supermodeltools/Uncompact/releases) and run `uncompact auth login`.
+
+### Verify
+
+```bash
+uncompact verify-install
+uncompact run --debug
 ```
 
 ### 🗑 Uninstall
@@ -95,39 +106,7 @@ To **completely remove** Uncompact configuration and cached data:
 
 ```bash
 uncompact uninstall --total
-```
-
-*Note: After running the above, you can remove the CLI itself with `npm uninstall -g uncompact`.*
-
-**Via Go:**
-
-```bash
-go install github.com/supermodeltools/uncompact@latest
-```
-
-**Or download a binary** from [Releases](https://github.com/supermodeltools/Uncompact/releases).
-
-### 2. Authenticate
-
-```bash
-uncompact auth login
-```
-
-This opens [dashboard.supermodeltools.com/api-keys/](https://dashboard.supermodeltools.com/api-keys/) where you can subscribe and generate an API key.
-
-### 3. Install Claude Code Hooks
-
-```bash
-uncompact install
-```
-
-This auto-detects your Claude Code `settings.json`, shows a diff, and merges the hooks non-destructively.
-
-### 4. Verify
-
-```bash
-uncompact verify-install
-uncompact run --debug
+npm uninstall -g uncompact
 ```
 
 ## CLI Reference
@@ -164,6 +143,8 @@ uncompact cache clear --project  # Clear only the current project's cache
 | Variable | Description |
 |----------|-------------|
 | `SUPERMODEL_API_KEY` | Supermodel API key (overrides config file) |
+| `UNCOMPACT_API_URL` | Override the API base URL (e.g. for staging) |
+| `UNCOMPACT_DASHBOARD_URL` | Override the dashboard base URL (e.g. for staging) |
 
 ### Config File
 
@@ -244,7 +225,7 @@ uncompact/
 |---------|--------|
 | Default TTL | 15 minutes |
 | Stale cache | Served with `⚠️ STALE` warning; fresh fetch attempted |
-| API unavailable | Serve most recent cache entry silently |
+| API unreachable | Fail fast on connection error; serve stale cache if available |
 | No cache + API down | Silent exit 0 (never blocks Claude Code) |
 | Storage growth | Auto-prune entries older than 30 days |
 | Force refresh | `--force-refresh` flag |
