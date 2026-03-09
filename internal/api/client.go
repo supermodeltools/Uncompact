@@ -371,13 +371,15 @@ func (c *Client) pollJob(
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
-			c.logFn("[warn] poll attempt %d (%s): request error (will retry): %v", attempt+1, endpoint, err)
-			select {
-			case <-ctx.Done():
-				return ctxDeadlineErr(ctx)
-			case <-c.afterFn(10 * time.Second):
-			}
-			continue
+			// Connection-level errors (DNS failure, connection refused, network
+			// unreachable) mean the API is down. Retrying won't help and would
+			// block the caller — typically the Claude Code Stop hook — for the
+			// full context duration. Return immediately so the hook can exit
+			// gracefully rather than hanging until the context deadline fires.
+			// This is distinct from HTTP-level errors (5xx, rate limits) and
+			// job-processing delays ("pending"/"processing"), which do warrant
+			// polling retries.
+			return fmt.Errorf("API unreachable: %w", err)
 		}
 		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
 		resp.Body.Close()
