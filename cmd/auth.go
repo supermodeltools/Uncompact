@@ -115,6 +115,8 @@ func authLoginHandler(cmd *cobra.Command, args []string) error {
 // authLoginBrowser starts a localhost callback server, opens the dashboard,
 // and waits for the key to arrive via redirect.
 func authLoginBrowser(cfg *config.Config) (string, error) {
+	logFn := makeLogger()
+
 	state, err := generateState()
 	if err != nil {
 		return "", fmt.Errorf("generating state: %w", err)
@@ -125,6 +127,7 @@ func authLoginBrowser(cfg *config.Config) (string, error) {
 		return "", fmt.Errorf("starting callback server: %w", err)
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
+	logFn("[debug] auth: callback server listening on 127.0.0.1:%d", port)
 
 	type callbackResult struct {
 		key string
@@ -134,7 +137,11 @@ func authLoginBrowser(cfg *config.Config) (string, error) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("state") != state {
+		logFn("[debug] auth: callback received: %s", r.URL.String())
+
+		gotState := r.URL.Query().Get("state")
+		if gotState != state {
+			logFn("[debug] auth: state mismatch — got %q, expected %q", gotState, state)
 			http.Error(w, "Invalid state parameter", http.StatusForbidden)
 			resultCh <- callbackResult{err: fmt.Errorf("state mismatch (possible CSRF)")}
 			return
@@ -146,11 +153,13 @@ func authLoginBrowser(cfg *config.Config) (string, error) {
 			if errMsg == "" {
 				errMsg = "no key received"
 			}
+			logFn("[debug] auth: callback error — %s", errMsg)
 			http.Error(w, errMsg, http.StatusBadRequest)
 			resultCh <- callbackResult{err: fmt.Errorf("dashboard returned error: %s", errMsg)}
 			return
 		}
 
+		logFn("[debug] auth: key received (%d chars)", len(key))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, successHTML)
@@ -170,7 +179,8 @@ func authLoginBrowser(cfg *config.Config) (string, error) {
 		_ = server.Shutdown(ctx)
 	}()
 
-	dashURL := fmt.Sprintf("%s?port=%d&state=%s", config.DashboardCLIAuthURL, port, state)
+	dashURL := fmt.Sprintf("%s?port=%d&state=%s", config.EffectiveCLIAuthURL(), port, state)
+	logFn("[debug] auth: dashboard URL: %s", dashURL)
 	fmt.Println("Opening your browser to sign in...")
 	fmt.Printf("  %s\n\n", dashURL)
 	fmt.Println("Waiting for authentication (this will timeout in 2 minutes)...")

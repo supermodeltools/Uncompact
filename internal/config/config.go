@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	EnvAPIKey    = "SUPERMODEL_API_KEY"
-	EnvMode      = "UNCOMPACT_MODE"
-	APIBaseURL   = "https://api.supermodeltools.com"
+	EnvAPIKey        = "SUPERMODEL_API_KEY"
+	EnvMode          = "UNCOMPACT_MODE"
+	EnvDashboardURL  = "UNCOMPACT_DASHBOARD_URL" // override base dashboard URL for staging
+	APIBaseURL       = "https://api.supermodeltools.com"
 	DashboardURL        = "https://dashboard.supermodeltools.com"
 	DashboardKeyURL     = "https://dashboard.supermodeltools.com/api-keys/"
 	DashboardCLIAuthURL = "https://dashboard.supermodeltools.com/cli-auth/"
@@ -39,6 +40,16 @@ type Config struct {
 
 	// Source indicates where the API key was loaded from.
 	Source string `json:"-"`
+}
+
+// EffectiveCLIAuthURL returns the dashboard CLI auth URL, allowing the base
+// domain to be overridden via UNCOMPACT_DASHBOARD_URL for staging or local
+// development. Example: UNCOMPACT_DASHBOARD_URL=https://staging.dashboard.supermodeltools.com
+func EffectiveCLIAuthURL() string {
+	if override := os.Getenv(EnvDashboardURL); override != "" {
+		return strings.TrimRight(override, "/") + "/cli-auth/"
+	}
+	return DashboardCLIAuthURL
 }
 
 // ConfigDir returns the XDG-compatible config directory.
