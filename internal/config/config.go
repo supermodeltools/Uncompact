@@ -15,6 +15,7 @@ const (
 	EnvAPIKey        = "SUPERMODEL_API_KEY"
 	EnvMode          = "UNCOMPACT_MODE"
 	EnvDashboardURL  = "UNCOMPACT_DASHBOARD_URL" // override base dashboard URL for staging
+	EnvAPIURL        = "UNCOMPACT_API_URL"        // override API base URL for staging
 	APIBaseURL       = "https://api.supermodeltools.com"
 	DashboardURL        = "https://dashboard.supermodeltools.com"
 	DashboardKeyURL     = "https://dashboard.supermodeltools.com/api-keys/"
@@ -205,7 +206,10 @@ func Load(flagAPIKey string) (*Config, error) {
 	}
 
 	// Apply defaults for any fields not set by file/env/flag.
-	if cfg.BaseURL == "" {
+	// UNCOMPACT_API_URL overrides the API base URL (useful for staging).
+	if envAPIURL := os.Getenv(EnvAPIURL); envAPIURL != "" {
+		cfg.BaseURL = strings.TrimRight(envAPIURL, "/")
+	} else if cfg.BaseURL == "" {
 		cfg.BaseURL = APIBaseURL
 	}
 	if cfg.MaxTokens <= 0 {
