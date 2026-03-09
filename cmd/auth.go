@@ -139,11 +139,18 @@ func authLoginBrowser(cfg *config.Config) (string, error) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		logFn("[debug] auth: callback received: %s", r.URL.String())
+		// Log the callback path and which query params are present, but never
+		// their values — key and state are secrets.
+		q := r.URL.Query()
+		params := make([]string, 0, len(q))
+		for k := range q {
+			params = append(params, k)
+		}
+		logFn("[debug] auth: callback received: %s (params: %v)", r.URL.Path, params)
 
 		gotState := r.URL.Query().Get("state")
 		if gotState != state {
-			logFn("[debug] auth: state mismatch — got %q, expected %q", gotState, state)
+			logFn("[debug] auth: state mismatch (CSRF check failed)")
 			http.Error(w, "Invalid state parameter", http.StatusForbidden)
 			resultCh <- callbackResult{err: fmt.Errorf("state mismatch (possible CSRF)")}
 			return
@@ -182,7 +189,7 @@ func authLoginBrowser(cfg *config.Config) (string, error) {
 	}()
 
 	dashURL := fmt.Sprintf("%s?port=%d&state=%s", config.EffectiveCLIAuthURL(), port, state)
-	logFn("[debug] auth: dashboard URL: %s", dashURL)
+	logFn("[debug] auth: opening dashboard (port=%d, state=<redacted>)", port)
 	fmt.Println("Opening your browser to sign in...")
 	fmt.Printf("  %s\n\n", dashURL)
 	fmt.Println("Waiting for authentication (this will timeout in 2 minutes)...")
