@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -16,6 +17,7 @@ import (
 	"github.com/supermodeltools/uncompact/internal/api"
 	"github.com/supermodeltools/uncompact/internal/cache"
 	"github.com/supermodeltools/uncompact/internal/config"
+	"github.com/supermodeltools/uncompact/internal/hooks"
 	"golang.org/x/term"
 )
 
@@ -277,7 +279,8 @@ func authLoginManual(cfg *config.Config) error {
 	return saveAndCacheKey(cfg, key)
 }
 
-// saveAndCacheKey encrypts and saves the key, then updates the auth cache.
+// saveAndCacheKey encrypts and saves the key, updates the auth cache, then
+// automatically installs the Claude Code hooks so auth login is a one-step setup.
 func saveAndCacheKey(cfg *config.Config, key string) error {
 	if os.Getenv(config.EnvAPIKey) != "" {
 		fmt.Println()
@@ -304,9 +307,61 @@ func saveAndCacheKey(cfg *config.Config, key string) error {
 	} else {
 		fmt.Println("\nAPI key saved.")
 	}
+
+	// Auto-install hooks so auth login is a complete one-step setup.
 	fmt.Println()
-	fmt.Println("Next: run 'uncompact install' to add hooks to Claude Code.")
+	autoInstallHooks()
 	return nil
+}
+
+// autoInstallHooks installs the Claude Code hooks as part of the auth login
+// flow. If already installed it confirms silently. If not, it shows the diff,
+// prompts for confirmation, and applies — matching the behaviour of
+// `uncompact install` but without requiring a separate command.
+func autoInstallHooks() {
+	settingsPath, err := hooks.FindSettingsFile()
+	if err != nil {
+		fmt.Println("Could not find Claude Code settings.json — run 'uncompact install' manually.")
+		return
+	}
+
+	result, err := hooks.Install(settingsPath, true) // dry-run to get diff
+	if err != nil {
+		fmt.Printf("Could not check hook status: %v\n", err)
+		fmt.Println("Run 'uncompact install' manually.")
+		return
+	}
+
+	if result.AlreadySet {
+		fmt.Println("✓ Claude Code hooks already installed.")
+		return
+	}
+
+	fmt.Println("The following changes will be made to Claude Code settings.json:")
+	fmt.Println()
+	fmt.Println(result.Diff)
+	fmt.Print("Install hooks now? [y/N]: ")
+
+	scanner := bufio.NewScanner(os.Stdin)
+	if !scanner.Scan() {
+		fmt.Println("Skipped. Run 'uncompact install' to add hooks later.")
+		return
+	}
+	answer := strings.TrimSpace(strings.ToLower(scanner.Text()))
+	if answer != "y" && answer != "yes" {
+		fmt.Println("Skipped. Run 'uncompact install' to add hooks later.")
+		return
+	}
+
+	if _, err := hooks.Install(settingsPath, false); err != nil {
+		fmt.Printf("Hook install failed: %v\n", err)
+		fmt.Println("Run 'uncompact install' manually.")
+		return
+	}
+
+	fmt.Println()
+	fmt.Println("✓ Claude Code hooks installed.")
+	fmt.Println("  Uncompact will now reinject context automatically after compaction.")
 }
 
 func authStatusHandler(cmd *cobra.Command, args []string) error {
