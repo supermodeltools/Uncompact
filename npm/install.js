@@ -191,7 +191,7 @@ async function main() {
   let isAuthenticated = false;
   try {
     const out = execFileSync(destPath, ["auth", "status"], { stdio: "pipe" }).toString();
-    isAuthenticated = out.includes("authenticated");
+    isAuthenticated = /^Status: authenticated$/m.test(out);
   } catch (err) {
     // binary failed or not runnable — fall through to install
   }
