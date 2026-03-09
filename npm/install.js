@@ -187,27 +187,32 @@ async function main() {
     log(`[uncompact] Installed to ${destPath}\n\n`);
   }
 
-  // Automatically install Claude Code hooks
-  log("[uncompact] Configuring Claude Code hooks...\n");
+  // Check if already authenticated so we can decide what to run.
+  let isAuthenticated = false;
   try {
-    execFileSync(destPath, ["install", "--yes"], { stdio: "inherit" });
+    const out = execFileSync(destPath, ["auth", "status"], { stdio: "pipe" }).toString();
+    isAuthenticated = out.includes("authenticated");
   } catch (err) {
-    log("[uncompact] Note: Automatic hook configuration skipped or failed. Run manually if needed:\n");
-    log("  uncompact install\n");
+    // binary failed or not runnable — fall through to install
   }
 
-  // Show status to verify setup
-  try {
-    console.log();
-    execFileSync(destPath, ["status"], { stdio: "inherit" });
-  } catch (err) {
+  if (isAuthenticated) {
+    // Existing user (upgrade): just make sure hooks are current.
+    log("[uncompact] Already authenticated. Ensuring Claude Code hooks are installed...\n");
     try {
-      execFileSync(destPath, [], { stdio: "inherit" });
-    } catch (e) {}
+      execFileSync(destPath, ["install", "--yes"], { stdio: "inherit" });
+    } catch (err) {
+      log("[uncompact] Note: hook configuration skipped. Run 'uncompact install' manually if needed.\n");
+    }
+  } else {
+    // Fresh install: auth login handles both authentication and hook installation.
+    log("[uncompact] Starting setup...\n\n");
+    try {
+      execFileSync(destPath, ["auth", "login"], { stdio: "inherit" });
+    } catch (err) {
+      log("[uncompact] Setup skipped or failed. Run 'uncompact auth login' to complete setup.\n");
+    }
   }
-
-  log("\n");
-  log("[uncompact] To authenticate: run 'uncompact auth login'\n");
 }
 
 main().catch((err) => {
